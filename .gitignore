@@ -4,3 +4,4 @@ __pycache__/
 
 # 证据账本是本地数据（含真实对话/返工记录），只公开格式示例
 learning-wiki/feedback/ledger.jsonl
+paper-reading/feedback/ledger.jsonl
