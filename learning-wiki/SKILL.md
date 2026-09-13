@@ -3,7 +3,7 @@ name: learning-wiki
 description: 把 AI 问答对话沉淀为结构化学习 Wiki：按因果链组织章节、还原学习者真实提问、记录误区纠正轨迹、术语首现必释、配 Mermaid 流程图与自测题参考答案。当用户说"总结这次学习""做成学习 wiki""整理学习笔记""复盘这次问答"或输入 /learning-wiki 时使用。
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   author: "Shen-An"
 ---
 
@@ -69,11 +69,17 @@ metadata:
 
 ### Step 5 · 交付与自检
 
-- 先跑机械校验：`python scripts/check_wiki.py <wiki目录>`（修完所有 ERROR；WARN 逐条人工判断，故意省略某小节可接受）
+- 先跑机械校验：`python scripts/check_wiki.py <wiki目录>`（检查码 E1–E5 / W1–W3；修完所有 ERROR；WARN 逐条人工判断，故意省略某小节可接受）
 - 再逐条过 `references/quality-rubric.md` 做人工检查（忠实性、误解轨迹这些机器查不了）
 - Mermaid 语法自查：含括号/特殊字符的节点标签用引号包裹，换行用 `<br/>`，确保 GitHub / Obsidian / VS Code 预览可渲染
 - README 内部链接全部相对路径可达（脚本会查）
 - 向用户汇报：文件清单 + 每篇对应对话的哪一段 + 指出对话中留下的悬而未决问题
+
+### Step 6 · 自迭代（证据账本 + 触发式复盘）
+
+- 交付后，把本次的失败信号追加进 `feedback/ledger.jsonl`（不存在则创建；格式见 `feedback/ledger.example.jsonl`；只追加、不删改）。必记的三类：修复过的 ERROR、被判定"本应在生成时避免"的 WARN、人工核对或用户提出的任何返工
+- 仅当用户要求"复盘/迭代这个 skill"，或自上次版本 bump 后新增记录 ≥ 5 条，才按 `references/self-iteration.md` 进入迭代流程：聚类证据 → 最小 diff → `python evals/run_evals.py` 门禁 → 人工确认后落盘 → 升版本并写 `CHANGELOG.md`
+- **任何一次 Step 1–5 的生成过程中，绝不修改 skill 自身文件**
 
 ## 质量下限
 

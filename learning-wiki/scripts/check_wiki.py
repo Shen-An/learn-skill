@@ -9,8 +9,10 @@
   E2  README 中的相对 .md 链接指向不存在的文件
   E3  章节编号不连续 / 不符合 NN-标题.md 命名
   E4  任一文件中 ``` 围栏未闭合（含 mermaid 渲染失败风险）
+  E5  任意正文章节中的相对 .md 链接指向不存在的文件
   W1  章节缺少必备小节: 自测题 / 参考答案 / 一句话总结 / mermaid 图
   W2  README 缺少: 目录表 / 术语速查 / 因果链(一图流)
+  W3  悬空引用: "见 NN(-章名) §小节名" 指向的章节文件或小节标题不存在
 退出码: 有 ERROR → 1; --strict 时 WARN 也算失败 → 1; 否则 0
 """
 from __future__ import annotations
@@ -25,6 +27,18 @@ except Exception:
     pass
 
 CHAPTER_RE = re.compile(r"^(\d{2})-(.+)\.md$")
+# 相对 md 链接（可带 #锚点，锚点不校验；跳过外链与纯锚点链接）
+LINK_RE = re.compile(r"\[[^\]]*\]\((?!https?://|mailto:|#)([^)\s]+?\.md)(?:#[^)\s]*)?\)")
+# 交叉引用约定：见 NN / 见 NN-章名 / 见《NN-章名》 §小节关键词
+# ref 在常见中英文标点处截断，避免把引用后面的正文当成小节名的一部分
+REF_RE = re.compile(r"见\s*《?(\d{2})(?:[^》§\s]*)》?\s*§\s*([^\s，。；、：:（）()【】\[\]<>《》""''！？!?—…·|]+)")
+HEADING_RE = re.compile(r"^#{1,6}\s+(.*)$", re.M)
+FENCE_BLOCK_RE = re.compile(r"```.*?(?:```|$)", re.S)
+
+
+def strip_fences(text):
+    """去掉围栏代码块，避免把示例内容当正文检查。"""
+    return FENCE_BLOCK_RE.sub("", text)
 
 def check_fences(md_files):
     """E4: 每个文件 ``` 围栏计数必须是偶数。"""
@@ -33,14 +47,41 @@ def check_fences(md_files):
         if text.count("```") % 2 != 0:
             yield "E4", f"{f.name}: ``` 围栏未闭合（奇数个），渲染会错乱"
 
-def check_readme_links(root):
-    """E2: README 里的相对 md 链接必须存在。"""
+def check_links(root, md_files):
+    """E2: README 里的相对 md 链接必须存在；E5: 其他文件同理。"""
     readme = root / "README.md"
-    text = readme.read_text(encoding="utf-8", errors="replace")
-    for m in re.finditer(r"\[[^\]]*\]\((?!https?://|mailto:)([^)\s]+?\.md)\)", text):
-        target = (readme.parent / m.group(1)).resolve()
-        if not target.exists():
-            yield "E2", f"README 链接指向不存在的文件: {m.group(1)}"
+    for f in md_files:
+        text = f.read_text(encoding="utf-8", errors="replace")
+        is_readme = f.resolve() == readme.resolve()
+        for m in LINK_RE.finditer(text):
+            target = (f.parent / m.group(1)).resolve()
+            if not target.exists():
+                if is_readme:
+                    yield "E2", f"README 链接指向不存在的文件: {m.group(1)}"
+                else:
+                    yield "E5", f"{f.name}: 链接指向不存在的文件: {m.group(1)}"
+
+def check_dangling_refs(root, md_files):
+    """W3: "见 NN(-章名) §小节" 引用必须能落到真实章节与真实小节标题。"""
+    chapters = {}
+    for p in root.iterdir():
+        m = CHAPTER_RE.match(p.name)
+        if p.is_file() and m:
+            chapters[m.group(1)] = p
+    heading_cache = {}
+    for f in md_files:
+        text = strip_fences(f.read_text(encoding="utf-8", errors="replace"))
+        for m in REF_RE.finditer(text):
+            num, ref = m.group(1), m.group(2)
+            target = chapters.get(num)
+            if target is None:
+                yield "W3", f"{f.name}: 悬空引用 见 {num} §{ref}（无此章节文件）"
+                continue
+            if num not in heading_cache:
+                ttext = strip_fences(target.read_text(encoding="utf-8", errors="replace"))
+                heading_cache[num] = HEADING_RE.findall(ttext)
+            if not any(ref in h for h in heading_cache[num]):
+                yield "W3", f"{f.name}: 悬空引用 见 {num} §{ref}（{target.name} 中无匹配小节标题）"
 
 def check_chapter_numbers(root):
     """E3: NN-*.md 编号从 01 起连续。"""
@@ -100,8 +141,9 @@ def main(argv):
     if not (root / "README.md").exists():
         problems.append(("E1", "缺少 README.md（总览与因果链入口）"))
     else:
-        problems += check_readme_links(root)
         problems += check_readme_sections(root)
+    problems += check_links(root, md_files)
+    problems += check_dangling_refs(root, md_files)
     problems += check_fences(md_files)
     problems += check_chapter_numbers(root)
     problems += check_chapter_sections(root)

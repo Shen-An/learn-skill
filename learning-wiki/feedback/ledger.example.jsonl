@@ -1,0 +1,3 @@
+{"ts":"2026-08-30T21:14:02+08:00","run":"learning-redis/","source":"check_wiki","codes":["W3"],"detail":"README 引用「见 04 §Gossip」但本次只写到 03 章","action":"fix_output","rule_change":null}
+{"ts":"2026-09-02T10:05:47+08:00","run":"learning-kafka/","source":"rubric","codes":["忠实性"],"detail":"把对话里没讲过的 ISR 收缩条件写进了正文，人工核对时抓出","action":"fix_output","rule_change":null}
+{"ts":"2026-09-05T22:31:09+08:00","run":"learning-os/","source":"user_rework","codes":["图表"],"detail":"用户反馈 mermaid 在旧版渲染器不显示：节点标签含冒号未加引号","action":"rule_change","rule_change":"chapter-template.md 语法注意补充含 : 的例子"}
