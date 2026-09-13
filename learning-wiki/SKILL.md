@@ -1,8 +1,9 @@
 ---
 name: learning-wiki
 description: 把 AI 问答对话沉淀为结构化学习 Wiki：按因果链组织章节、还原学习者真实提问、记录误区纠正轨迹、术语首现必释、配 Mermaid 流程图与自测题参考答案。当用户说"总结这次学习""做成学习 wiki""整理学习笔记""复盘这次问答"或输入 /learning-wiki 时使用。
+license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   author: "Shen-An"
 ---
 
@@ -68,9 +69,10 @@ metadata:
 
 ### Step 5 · 交付与自检
 
-- 逐条过 `references/quality-rubric.md`
+- 先跑机械校验：`python scripts/check_wiki.py <wiki目录>`（修完所有 ERROR；WARN 逐条人工判断，故意省略某小节可接受）
+- 再逐条过 `references/quality-rubric.md` 做人工检查（忠实性、误解轨迹这些机器查不了）
 - Mermaid 语法自查：含括号/特殊字符的节点标签用引号包裹，换行用 `<br/>`，确保 GitHub / Obsidian / VS Code 预览可渲染
-- README 内部链接全部相对路径可达
+- README 内部链接全部相对路径可达（脚本会查）
 - 向用户汇报：文件清单 + 每篇对应对话的哪一段 + 指出对话中留下的悬而未决问题
 
 ## 质量下限

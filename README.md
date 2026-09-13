@@ -27,7 +27,7 @@ learning-<主题>/
 
 ## 安装
 
-三个平台都遵循 `<skill名>/SKILL.md` 目录 bundle 格式，把 `learn-wiki/` 整个文件夹放进对应扫描目录即可，无需编译安装：
+三个平台都遵循 `<skill名>/SKILL.md` 目录 bundle 格式，把 `learning-wiki/` 整个文件夹放进对应扫描目录即可，无需编译安装：
 
 ### DSH
 
@@ -73,8 +73,10 @@ cp -r learn-wiki ~/.codex/skills/
 .
 ├── README.md
 ├── LICENSE                     # MIT
-└── learn-wiki/                 # ← 把这一层作为 skill 目录安装
-    ├── SKILL.md                # 主指令（frontmatter: name/description）
+└── learning-wiki/                 # ← 把这一层作为 skill 目录安装
+    ├── SKILL.md                # 主指令（frontmatter: name/description/license/metadata）
+    ├── scripts/
+    │   └── check_wiki.py       # 机械校验生成 wiki：链接可达/围栏闭合/编号连续/必备小节
     └── references/
         ├── chapter-template.md # 章节模板 + Mermaid 骨架 + 风格示例
         ├── readme-template.md  # 总览模板 + 因果链图画法
