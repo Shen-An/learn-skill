@@ -65,9 +65,22 @@ paper-notes/<论文短名>/
 
 ## 安装
 
-三个平台都遵循 `<skill名>/SKILL.md` 目录 bundle 格式，把目标 skill 文件夹整个放进对应扫描目录即可，无需编译安装：
+三个平台都遵循 `<skill名>/SKILL.md` 目录 bundle 格式，把目标 skill 文件夹整个放进对应扫描目录即可，无需编译安装。
 
-### DSH
+### 一条命令同步：`install.ps1`
+
+```powershell
+pwsh install.ps1                    # 两个 skill 同步到三个平台根目录
+pwsh install.ps1 -DryRun            # 只看会做什么，不写盘
+pwsh install.ps1 -Only paper-reading
+pwsh install.ps1 -Roots "$HOME\.agents\skills"
+```
+
+脚本自动发现仓库里所有含 `SKILL.md` 的子目录，对每个 (skill × 根目录) 执行：**已是同版本则跳过**（顺手清掉副本里的 `__pycache__` 残留）；否则 **旧版改名保全 → 拷新版 → 逐文件 SHA-256 比对 → 跑该 skill 的回归门禁 → 通过才删旧版，不通过自动回滚**。退出码 0（全成功）/ 1（有失败）。安装副本一律不含本地证据账本 `feedback/ledger.jsonl`（该文件由运行时自建）。默认根目录为 `~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`，可用 `-Roots` 覆盖；`-SkipGate` 跳过门禁（不推荐）、`-KeepBackup` 保留被替换的旧版目录。
+
+### 手动安装
+
+#### DSH
 
 ```bash
 # 用户级（所有项目可用；热发现，无需重启）
@@ -78,7 +91,7 @@ cp -r learning-wiki <项目>/.dsh/skills/   # 或 <项目>/.agents/skills/
 cp -r paper-reading <项目>/.dsh/skills/
 ```
 
-### Claude Code
+#### Claude Code
 
 ```bash
 # 个人级（所有项目可用）
@@ -88,7 +101,7 @@ cp -r paper-reading ~/.claude/skills/
 cp -r learning-wiki <项目>/.claude/skills/
 ```
 
-### Codex
+#### Codex
 
 ```bash
 # 全局
@@ -114,6 +127,7 @@ cp -r paper-reading ~/.codex/skills/
 .
 ├── README.md
 ├── LICENSE                     # MIT
+├── install.ps1                 # 一条命令同步到三个平台：哈希校验 + 跑门禁 + 失败回滚
 ├── learning-wiki/                 # ← 把这一层作为 skill 目录安装
 │   ├── SKILL.md                # 主指令：Step 1–5 生成流程 + Step 6 触发式自迭代
 │   ├── CHANGELOG.md            # 版本变更账（每次 bump 须过门禁 + 人工确认）
@@ -173,6 +187,7 @@ Issue & PR 欢迎。改完先跑回归门禁（必须全绿）：
 ```bash
 python learning-wiki/evals/run_evals.py
 python paper-reading/evals/run_evals.py
+pwsh install.ps1                # 门禁全绿后同步到三个平台（同样会跑门禁 + 哈希校验）
 ```
 
 再在三个平台里至少一个实测一次（对话/论文 → 产出 → 对照对应 `quality-rubric.md` 自检）。改规则的完整流程见各 skill 的 `references/self-iteration.md`。
