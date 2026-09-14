@@ -2,9 +2,10 @@
 r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记做机械校验。
 
 用法:
-    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review] [--refs N]
+    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review|index] [--refs N]
 
-模式判定 --mode auto（默认，按文件名词干，顺序敏感）:
+模式判定 --mode auto（默认，顺序敏感）:
+    首行非空内容恰为 `<!-- paper-reading: collection-index -->` → index（该标记检查先于文件名词干判定）；
     含 深读/精读 → deep；含 表格/填表 → table；含 思维导图 → mindmap；
     否则含 导图/mermaid/mmd → mmd；含 难点/问答/faq（大小写不敏感）→ faq；含 综述 → review；
     都没有时按内容启发式: 出现 `## 研究背景与目标` → mindmap；只有一张 `| 维度 | 内容 |` 表 → table；
@@ -22,6 +23,9 @@ r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记�
   faq:     E-FAQ-H1 / E-FAQ-SEC / E-FAQ-FIELD / E-FAQ-CITE / E-FAQ-DUP
            W-FAQ-MISCONCEPT / W-FAQ-SELFCHECK / W-FAQ-SHORT / W-FAQ-TONE
   review:  E-RV-SEC / E-RV-CITE / E-RV-NOREF / W-RV-DENSITY / W-RV-GAP
+  index:   E-IDX-MARKER / E-IDX-H1 / E-IDX-SEC / E-IDX-LINK / E-IDX-ENTRY
+           E-IDX-DUP / E-IDX-SRCKIND / W-IDX-ORPHAN / W-IDX-TERM / W-IDX-UPDATE
+           （共 10 项，合集层索引 paper-notes/README.md；--mode index 可对缺标记文件强制生效）
 
 输出: 每条问题一行 `[ERROR] <CODE> <文件名>: <消息>` / `[WARN ] <CODE> <文件名>: <消息>`（WARN 的方括号内为 4 字母 + 1 空格）；
 末行汇总:
@@ -74,6 +78,24 @@ r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记�
     因此把解答拆成"字段行两行 + 空行 + 续写段落"时，续写段落里的来源标记不会被算作该解答的。
     W-FAQ-SHORT 的字数 = 解答段落内 `[\u4e00-\u9fff]` 中文字符数（含扩展 A 区汉字）+ 英文单词数（`[A-Za-z]+`）。
     W-FAQ-TONE 沿用 deep 模式的 TONE_WORDS，但作用范围是全文（围栏内除外）。
+  * index 模式的 `executed` 计数为 10（上表逐项各 1）。实现注记：
+    标记行判定在**剔除 HTML 注释之前**的原文上做（否则标记会被 strip_comments 抹掉），
+    要求"首个非空行 strip 后恰等于标记"；显式 `--mode index` 时该判定失败只报 E-IDX-MARKER，不改变模式。
+    E-IDX-H1 的"去掉标记行后"由 strip_comments 自然实现：标记行被置空，故首个非空行即 H1；
+    标题文本须形如 `# <方向>论文笔记库`（方向非空），且全文件 H1 唯一。
+    E-IDX-SEC 用小节标题**完全相等**匹配五个 `##` 小节（多出的其它 `##` 小节不报）；
+    顺序判定只在五节齐全时进行，避免级联。
+    E-IDX-ENTRY 的"条目"= `## 一、主题清单` 起、下一个 `##` 前的区间内以 `-`/`*`/`+` 开头的列表项
+    （该区间内的普通段落不算条目）；缺链接 / 缺 ` — ` 分隔 / 缺证据括注 / 链接目标不是 `./<短名>/README.md`
+    / 证据括注缺 `代码：有|无` 各报一条 E-IDX-ENTRY，互不替代。
+    E-IDX-LINK 只对有链接的条目判定，目标路径按**索引文件所在目录**相对解析（支持 `../`），存在即可；
+    E-IDX-DUP 以链接目标字符串为键，同一目标登记 ≥2 次报 1 条（不去重后逐条报）。
+    E-IDX-SRCKIND 取证据括注里 `；`/`;` 之前的那一段作为"类型词"，须属于 {全文, 摘要, 二手, 代码, OCR}。
+    W-IDX-ORPHAN 只扫索引所在目录**一层**的子目录（隐藏目录跳过），命中 `<子目录>/README.md`
+    且该 README 未被任何条目链接时各报 1 条；用绝对路径比较，避免 `./` 写法差异造成误判。
+    W-IDX-TERM 只看 `## 二、术语速查` 区间内的**第一张**表：表头去空白后须恰为
+    `|术语|一句话解释|首次出现|`，且分隔行之外至少一行数据；无表 / 表头错 / 无数据各报 1 条。
+    W-IDX-UPDATE 只要求存在一行 `>` 引用行，其中出现 `最近更新：YYYY-MM-DD`（允许行尾附加说明文字）。
 """
 from __future__ import annotations
 
@@ -86,7 +108,7 @@ try:  # Windows GBK 控制台防御：保证中文输出不抛 UnicodeEncodeErro
 except Exception:
     pass
 
-MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review")
+MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review", "index")
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 FENCE_LINE_RE = re.compile(r"^\s*```")
@@ -118,6 +140,20 @@ FAQ_CITE_RE = re.compile(
     r"\[(?:" + "|".join(_FAQ_CITE_LABELS) + r"|\d+)\]"
 )
 RV_SECTIONS = ("研究主题概述", "各论文主要贡献", "研究方法对比", "主要发现汇总", "研究趋势与展望")
+
+# index 模式（合集层索引 paper-notes/README.md）
+INDEX_MARKER = "<!-- paper-reading: collection-index -->"
+IDX_H1_RE = re.compile(r"^#\s+\S.*论文笔记库\s*$")
+IDX_SECTIONS = ("一、主题清单", "二、术语速查", "三、跨论文对比", "四、未解决问题", "五、证据强度总览")
+IDX_SRC_KINDS = ("全文", "摘要", "二手", "代码", "OCR")
+IDX_TERM_HEADER = "|术语|一句话解释|首次出现|"
+IDX_UPDATE_RE = re.compile(r"^\s*>.*最近更新\s*[:：]\s*\d{4}-\d{2}-\d{2}")
+IDX_ENTRY_LINK_RE = re.compile(r"^\[([^\]\n]+)\]\(([^)\s]+)\)")
+IDX_ENTRY_TARGET_RE = re.compile(r"^\./([^/\s]+)/README\.md$")
+IDX_ENTRY_DASH_RE = re.compile(r"^\s+—\s+(\S.*?)\s*$")
+IDX_ENTRY_EVIDENCE_RE = re.compile(r"（证据：([^）]*)）\s*$")
+IDX_ENTRY_CODE_RE = re.compile(r"代码\s*[:：]\s*(?:有|无)")
+IDX_SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
 
 
 # ---------------------------------------------------------------- 通用工具
@@ -887,9 +923,217 @@ def check_review(lines: list[str], refs: int | None) -> tuple[list[tuple[str, st
     return problems, executed
 
 
+# ---------------------------------------------------------------- index 模式
+
+def section_span(lines: list[str], headings: list[tuple[int, int, str]],
+                 title: str) -> tuple[int, int] | None:
+    """标题文本完全等于 title 的二级小节区间 [start, end)（0 基，end exclusive）；没有则 None。"""
+    start = None
+    for i, lvl, t in headings:
+        if lvl == 2 and t == title:
+            start = i
+            break
+    if start is None:
+        return None
+    end = len(lines)
+    for i, lvl, _ in headings:
+        if lvl <= 2 and i > start:
+            end = i
+            break
+    return (start, end)
+
+
+def check_index(lines: list[str], marker_ok: bool, path: Path) -> tuple[list[tuple[str, str]], int]:
+    """校验合集层索引 paper-notes/README.md（lines 为已剔除 HTML 注释的原文行）。"""
+    problems: list[tuple[str, str]] = []
+    executed = 0
+    index_dir = path.parent
+    headings = heading_map(lines)
+    h1_idx = [i for i, ln in enumerate(lines) if H1_RE.match(ln)]
+    fi = first_nonempty(lines)
+
+    # E-IDX-MARKER（标记行判定在剔除注释之前的原文上做，见 main）
+    executed += 1
+    if not marker_ok:
+        problems.append(
+            ("E-IDX-MARKER",
+             f"首行非空内容必须是 {INDEX_MARKER}（合集索引的唯一识别标记）")
+        )
+
+    # E-IDX-H1（标记行已被剔除为空行，故首个非空行即"标记行之后的 H1"）
+    executed += 1
+    head_text = lines[fi].strip() if fi is not None else ""
+    if (fi is None or not H1_RE.match(lines[fi]) or len(h1_idx) != 1
+            or h1_idx[0] != fi or not IDX_H1_RE.match(head_text)):
+        problems.append(
+            ("E-IDX-H1",
+             f"标记行之后的首个非空行必须是唯一的 H1「# <方向>论文笔记库」，实际：{head_text or '（无）'}")
+        )
+
+    # E-IDX-SEC
+    executed += 1
+    spans: dict[str, tuple[int, int]] = {}
+    for kw in IDX_SECTIONS:
+        sp = section_span(lines, headings, kw)
+        if sp is not None:
+            spans[kw] = sp
+    for kw in IDX_SECTIONS:
+        if kw not in spans:
+            problems.append(("E-IDX-SEC", f"缺少必备小节：## {kw}"))
+    if len(spans) == len(IDX_SECTIONS):
+        order = [spans[kw][0] for kw in IDX_SECTIONS]
+        if order != sorted(order) or len(set(order)) != len(order):
+            problems.append(
+                ("E-IDX-SEC",
+                 "五个必备小节的顺序必须是 " + " → ".join(f"## {kw}" for kw in IDX_SECTIONS))
+            )
+
+    # ---- 条目扫描（一、主题清单 区间内的列表项）
+    entry_problems: list[tuple[str, str]] = []
+    link_problems: list[tuple[str, str]] = []
+    kind_problems: list[tuple[str, str]] = []
+    targets_seen: list[str] = []
+    span1 = spans.get("一、主题清单")
+    if span1 is not None:
+        for i in range(span1[0] + 1, span1[1]):
+            s = lines[i].strip()
+            m_item = re.match(r"^([-*+]|\d+[.)])(\s+|$)", s)
+            if not m_item:
+                continue
+            body = s[m_item.end():].strip()
+            m_link = IDX_ENTRY_LINK_RE.match(body)
+            m_ev = IDX_ENTRY_EVIDENCE_RE.search(body)
+            m_dash = IDX_ENTRY_DASH_RE.match(body[m_link.end():]) if m_link else None
+
+            # E-IDX-ENTRY
+            if not m_link:
+                entry_problems.append(
+                    ("E-IDX-ENTRY",
+                     f"第 {i + 1} 行条目缺少链接（应写成 - [短名](./短名/README.md) — <一句话结论>"
+                     "（证据：<类型>；代码：<有|无>））")
+                )
+            elif not m_dash:
+                entry_problems.append(
+                    ("E-IDX-ENTRY", f"第 {i + 1} 行条目缺少「 — 」分隔（链接与一句话结论之间）")
+                )
+            if not m_ev:
+                entry_problems.append(
+                    ("E-IDX-ENTRY",
+                     f"第 {i + 1} 行条目缺少证据括注（形如「（证据：<类型>；代码：<有|无>）」）")
+                )
+            elif not IDX_ENTRY_CODE_RE.search(m_ev.group(1)):
+                entry_problems.append(
+                    ("E-IDX-ENTRY", f"第 {i + 1} 行条目证据括注缺少「代码：有|无」")
+                )
+
+            if m_link:
+                target = m_link.group(2)
+                targets_seen.append(target)
+                if not IDX_ENTRY_TARGET_RE.match(target):
+                    entry_problems.append(
+                        ("E-IDX-ENTRY",
+                         f"第 {i + 1} 行条目的链接目标必须是 ./<短名>/README.md，实际：{target}")
+                    )
+                # E-IDX-LINK（按索引文件所在目录相对解析）
+                if not (index_dir / target).exists():
+                    link_problems.append(
+                        ("E-IDX-LINK",
+                         f"第 {i + 1} 行条目链接的目标文件不存在：{target}（相对 {path.name} 所在目录解析）")
+                    )
+            # E-IDX-SRCKIND（证据括注里 `；` 之前那一段作为类型词）
+            if m_ev:
+                kind = re.split(r"[；;]", m_ev.group(1))[0].strip()
+                if kind not in IDX_SRC_KINDS:
+                    kind_problems.append(
+                        ("E-IDX-SRCKIND",
+                         f"第 {i + 1} 行条目证据类型「{kind}」非法，只允许 {'/'.join(IDX_SRC_KINDS)}")
+                    )
+
+    executed += 1
+    problems.extend(entry_problems)
+
+    executed += 1
+    problems.extend(link_problems)
+
+    # E-IDX-DUP
+    executed += 1
+    dup_seen: dict[str, int] = {}
+    for target in targets_seen:
+        dup_seen[target] = dup_seen.get(target, 0) + 1
+    for target, n in dup_seen.items():
+        if n >= 2:
+            problems.append(("E-IDX-DUP", f"链接目标重复登记：{target} 共出现 {n} 次"))
+
+    executed += 1
+    problems.extend(kind_problems)
+
+    # W-IDX-ORPHAN（反向完整性：索引所在目录一层的子目录里有 README.md 却没被登记）
+    executed += 1
+    linked = set()
+    for target in targets_seen:
+        try:
+            linked.add((index_dir / target).resolve())
+        except OSError:
+            pass
+    if index_dir.is_dir():
+        for d in sorted(index_dir.iterdir(), key=lambda p: p.name):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            readme = d / "README.md"
+            if not readme.is_file():
+                continue
+            try:
+                if readme.resolve() in linked:
+                    continue
+            except OSError:
+                pass
+            problems.append(
+                ("W-IDX-ORPHAN", f"子目录笔记未登记进「一、主题清单」：{d.name}/README.md")
+            )
+
+    # W-IDX-TERM
+    executed += 1
+    term_msg = ""
+    span2 = spans.get("二、术语速查")
+    if span2 is None:
+        term_msg = "缺少「## 二、术语速查」小节，无法检查术语表"
+    else:
+        a, b = span2
+        head_i = next((i for i in range(a + 1, b) if lines[i].strip().startswith("|")), None)
+        if head_i is None:
+            term_msg = "「二、术语速查」内没有表格，必须画三列表 | 术语 | 一句话解释 | 首次出现 |"
+        else:
+            head = lines[head_i].strip()
+            if re.sub(r"\s+", "", head) != IDX_TERM_HEADER:
+                term_msg = f"术语速查表表头必须恰为三列 | 术语 | 一句话解释 | 首次出现 |，实际：{head}"
+            else:
+                data_rows = 0
+                j = head_i + 1
+                while j < b and lines[j].strip().startswith("|"):
+                    cells = [c.strip() for c in split_cells(lines[j]) if c.strip()]
+                    if not (cells and all(IDX_SEPARATOR_CELL_RE.match(c) for c in cells)):
+                        data_rows += 1
+                    j += 1
+                if data_rows == 0:
+                    term_msg = "术语速查表至少需要一行数据（当前只有表头与分隔行）"
+    if term_msg:
+        problems.append(("W-IDX-TERM", term_msg))
+
+    # W-IDX-UPDATE
+    executed += 1
+    if not any(IDX_UPDATE_RE.match(ln) for ln in lines):
+        problems.append(
+            ("W-IDX-UPDATE", "缺少「最近更新」行（增量续写要留时间戳）：> 最近更新：YYYY-MM-DD")
+        )
+
+    return problems, executed
+
+
 # ---------------------------------------------------------------- 模式判定与入口
 
-def detect_mode(path: Path, lines: list[str]) -> str:
+def detect_mode(path: Path, lines: list[str], index_marker: bool = False) -> str:
+    if index_marker:  # 合集索引标记最先判定，优先于文件名词干
+        return "index"
     name = path.name
     if "深读" in name or "精读" in name:
         return "deep"
@@ -994,8 +1238,13 @@ def main(argv: list[str] | None = None) -> int:
     raw_lines = text.split("\n")
     masked_lines = mask_fences(text).split("\n")
 
+    # index 模式的识别标记是 HTML 注释，故必须在剔除注释之前的原文上判定
+    orig_lines = raw.split("\n")
+    fi_raw = first_nonempty(orig_lines)
+    index_marker = fi_raw is not None and orig_lines[fi_raw].strip() == INDEX_MARKER
+
     if mode == "auto":
-        mode = detect_mode(path, raw_lines)
+        mode = detect_mode(path, raw_lines, index_marker)
 
     if mode == "deep":
         problems, executed = check_deep(raw_lines, masked_lines)
@@ -1007,6 +1256,8 @@ def main(argv: list[str] | None = None) -> int:
         problems, executed = check_mmd(raw_lines)
     elif mode == "faq":
         problems, executed = check_faq(raw_lines)
+    elif mode == "index":
+        problems, executed = check_index(raw_lines, index_marker, path)
     else:
         problems, executed = check_review(raw_lines, refs)
 

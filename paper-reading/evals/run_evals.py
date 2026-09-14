@@ -22,6 +22,12 @@ references/self-iteration.md 规定：任何对 SKILL.md 规则、check_paper_no
      docstring 契约：输出文件名与头部字段、页锚点格式与顺序、--pages 裁剪不重编号、
      越界与参数错误退出码 2、解析失败 1、加密 4、缺依赖 3、目录模式一层/递归、
      默认与 --out 输出位置、只读不改动源 PDF；用例结束前清理全部临时产物
+  6) 合集层索引 index-cases：check_paper_note.py 的 `--mode index`（10 个 CODE）逐项断言——
+     good/索引.md 必须 0 ERROR 0 WARN；每个 bad fixture 退出码 1 且**只报它设计的那一个
+     ERROR 码**；每个 warn fixture 退出码 0 且只报它设计的那一个 WARN 码；
+     orphan/（有笔记未登记）报 W-IDX-ORPHAN 而 linked/（已登记）不报，证明该 WARN 不是恒真；
+     `--mode auto` 对首行带 `<!-- paper-reading: collection-index -->` 的文件判为 index，
+     缺标记文件则不会被 auto 判成 index；最后做"每个索引 fixture 都在断言表内"的完整性自检
 退出码: 全部断言通过 → 0；任一失败 → 1
 """
 from __future__ import annotations
@@ -654,8 +660,118 @@ finally:
 
 expect("用例5 用例结束前临时目录与 wrapper 已全部清理", not PDF_WORK.exists(), f"{PDF_WORK} 仍然存在")
 
+# ---- 用例 6：合集层索引 paper-notes/README.md（--mode index） ----------------
+# 契约：首行非空内容恰为 `<!-- paper-reading: collection-index -->` 时 --mode auto 判为 index；
+# 显式 --mode index 对缺标记文件同样生效（报 E-IDX-MARKER）。
+# index-cases/ 只放索引 fixture（被链接的目标笔记 README.md 不算 fixture），
+# 不放进 good-sample / warn-sample / bad-sample，避免干扰既有用例的完整性校验。
+IDX_CASES = HERE / "index-cases"
+IDX_DIRS = ("good", "warn", "bad", "orphan", "linked")
+IDX_GOOD_REL = "good/索引.md"
+# (相对 index-cases 的路径, 设计要触发的 ERROR 码, 关键消息片段)
+IDX_BAD_CASES: list[tuple[str, str, str]] = [
+    ("bad/索引-缺标记.md", "E-IDX-MARKER",
+     "首行非空内容必须是 <!-- paper-reading: collection-index -->（合集索引的唯一识别标记）"),
+    ("bad/索引-标题不合规.md", "E-IDX-H1",
+     "必须是唯一的 H1「# <方向>论文笔记库」，实际：# 论文索引"),
+    ("bad/索引-缺小节.md", "E-IDX-SEC", "缺少必备小节：## 五、证据强度总览"),
+    ("bad/索引-链接不可达.md", "E-IDX-LINK",
+     "第 11 行条目链接的目标文件不存在：./不存在的论文/README.md"),
+    ("bad/索引-条目格式错.md", "E-IDX-ENTRY", "第 10 行条目缺少链接"),
+    ("bad/索引-重复登记.md", "E-IDX-DUP", "链接目标重复登记：./某论文/README.md 共出现 2 次"),
+    ("bad/索引-证据类型非法.md", "E-IDX-SRCKIND",
+     "第 10 行条目证据类型「网文」非法，只允许 全文/摘要/二手/代码/OCR"),
+]
+# (相对 index-cases 的路径, 设计要触发的 WARN 码, 关键消息片段)
+IDX_WARN_CASES: list[tuple[str, str, str]] = [
+    ("warn/索引-缺更新行.md", "W-IDX-UPDATE",
+     "缺少「最近更新」行（增量续写要留时间戳）：> 最近更新：YYYY-MM-DD"),
+    ("warn/索引-术语表缺列.md", "W-IDX-TERM",
+     "术语速查表表头必须恰为三列 | 术语 | 一句话解释 | 首次出现 |，实际：| 术语 | 一句话解释 |"),
+]
+
+case6_start = assertions
+
+
+def run_index(rel: str, mode: str = "index") -> tuple[int, str]:
+    return run_check(IDX_CASES / rel, mode)
+
+
+def idx_codes(out: str, prefix: str) -> list[str]:
+    """取出输出里出现的 <prefix>-XXX 码并去重排序（prefix 传 E-IDX / W-IDX）。"""
+    return sorted(set(re.findall(r"\[(?:ERROR|WARN )\] (" + prefix + r"-[A-Z0-9-]+)", out)))
+
+
+expect("index-cases/ 五个子目录齐全（good/warn/bad/orphan/linked）",
+       all((IDX_CASES / d).is_dir() for d in IDX_DIRS),
+       f"实际 {sorted(p.name for p in IDX_CASES.iterdir()) if IDX_CASES.is_dir() else '目录不存在'}")
+
+idx_present = sorted(f"{d}/{p.name}" for d in IDX_DIRS for p in (IDX_CASES / d).glob("索引*.md"))
+idx_covered = ({"good/索引.md", "orphan/索引.md", "linked/索引.md"}
+               | {rel for rel, _, _ in IDX_BAD_CASES}
+               | {rel for rel, _, _ in IDX_WARN_CASES})
+expect("index-cases 每个索引 fixture 都在断言表内",
+       bool(idx_present) and set(idx_present) <= idx_covered,
+       f"未覆盖: {sorted(set(idx_present) - idx_covered)}")
+
+# --- good：0 ERROR 0 WARN（10 项检查全过） ---
+code, out = run_index(IDX_GOOD_REL)
+expect("用例6 good/索引.md --mode index 退出码为 0", code == 0, f"实际 {code}\n{out}")
+expect("用例6 good/索引.md 10 项检查全过（0 ERROR 0 WARN）",
+       "[PASS ] 10 项检查全部通过" in out, out)
+expect("用例6 good/索引.md 无 ERROR 行", "[ERROR]" not in out, out)
+expect("用例6 good/索引.md 无 WARN 行", "[WARN ]" not in out, out)
+
+# --- bad：退出码 1，且只报它设计的那一个 ERROR 码 ---
+for rel, want_code, frag in IDX_BAD_CASES:
+    code, out = run_index(rel)
+    tag = f"index-cases/{rel} --mode index"
+    expect(f"{tag} 退出码为 1", code == 1, f"实际 {code}\n{out}")
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[ERROR] {want_code} " in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = idx_codes(out, "E-IDX")
+    expect(f"{tag} 只报 {want_code} 这一个 ERROR 码（实际 {got}）", got == [want_code], out)
+
+# --- warn：退出码 0、无 ERROR，且只报它设计的那一个 WARN 码 ---
+for rel, want_code, frag in IDX_WARN_CASES:
+    code, out = run_index(rel)
+    tag = f"index-cases/{rel} --mode index"
+    expect(f"{tag} 退出码为 0", code == 0, f"实际 {code}\n{out}")
+    expect(f"{tag} 无 ERROR 行", "[ERROR]" not in out, out)
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[WARN ] {want_code}" in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = idx_codes(out, "W-IDX")
+    expect(f"{tag} 只报 {want_code} 这一个 WARN 码（实际 {got}）", got == [want_code], out)
+
+# --- W-IDX-ORPHAN 的反向完整性：有笔记未登记才报，已登记不报（证明不是恒真） ---
+code, out = run_index("orphan/索引.md")
+expect("用例6 orphan/索引.md 有笔记未登记时退出码仍为 0（WARN 不改退出码）", code == 0,
+       f"实际 {code}\n{out}")
+expect("用例6 orphan/索引.md 命中 W-IDX-ORPHAN 且指名未登记的 某论文/README.md",
+       "[WARN ] W-IDX-ORPHAN" in out and "某论文/README.md" in out, out)
+expect("用例6 orphan/索引.md 不把已登记的 已登记论文 报成孤儿",
+       "已登记论文/README.md" not in out, out)
+code, out = run_index("linked/索引.md")
+expect("用例6 linked/索引.md 唯一笔记已登记 → 0 ERROR 0 WARN（W-IDX-ORPHAN 不是恒真）",
+       code == 0 and "[PASS ] 10 项检查全部通过" in out and "[WARN ]" not in out,
+       f"实际 {code}\n{out}")
+
+# --- --mode auto 的判定：带标记 → index（且与显式 --mode index 完全一致） ---
+code_auto, out_auto = run_check(IDX_CASES / IDX_GOOD_REL, "auto")
+code_idx, out_idx = run_check(IDX_CASES / IDX_GOOD_REL, "index")
+expect("用例6 --mode auto 对带标记的 good/索引.md 判为 index（与显式 --mode index 输出一致）",
+       code_auto == code_idx == 0 and out_auto == out_idx
+       and "[PASS ] 10 项检查全部通过" in out_auto, f"{out_auto}\n---\n{out_idx}")
+code_auto, out_auto = run_check(IDX_CASES / "warn" / "索引-缺更新行.md", "auto")
+expect("用例6 --mode auto 对带标记的 warn/索引-缺更新行.md 同样判为 index",
+       code_auto == 0 and "[WARN ] W-IDX-UPDATE" in out_auto, f"实际 {code_auto}\n{out_auto}")
+code_auto, out_auto = run_check(IDX_CASES / "bad" / "索引-缺标记.md", "auto")
+expect("用例6 缺标记文件不会被 auto 判为 index（不报任何 E-IDX-* 码）",
+       "E-IDX-" not in out_auto, out_auto)
+
 # ---- 汇总 ------------------------------------------------------------------
-print(f"\n[INFO ] 断言总数: {assertions}（用例 1-4：{case5_start}，用例 5 PDF 抽取器：{assertions - case5_start}）")
+print(f"\n[INFO ] 断言总数: {assertions}（用例 1-4：{case5_start}，"
+      f"用例 5 PDF 抽取器：{case6_start - case5_start}，用例 6 合集索引：{assertions - case6_start}）")
 if failures:
     print(f"\n[FAIL ] {len(failures)} 条断言未过：")
     for f_ in failures:

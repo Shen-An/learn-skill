@@ -6,7 +6,7 @@
 | Skill | 一句话 | 触发 |
 |-------|--------|------|
 | [`learning-wiki/`](./learning-wiki) | 把 AI 问答学习对话沉淀为结构化学习 Wiki | "总结这次学习，做成 wiki" |
-| [`paper-reading/`](./paper-reading) | 把论文加工成可核查的中文精读笔记（讲解 / 填表 / 思维导图 + 可渲染导图 / 难点与解答 / 综述） | "讲一下这篇论文" / "这篇论文有什么难点" / "写文献综述" |
+| [`paper-reading/`](./paper-reading) | 把论文加工成可核查的中文精读笔记（讲解 / 填表 / 思维导图 + 可渲染导图 / 难点与解答 / 综述），并把整个笔记库管成 wiki（主题清单 / 术语速查 / 跨论文对比 / 证据强度总览） | "讲一下这篇论文" / "这篇论文有什么难点" / "整理我的论文笔记库" |
 
 ## learning-wiki：对话 → 学习 Wiki
 
@@ -34,7 +34,7 @@ learning-<主题>/
 
 ### 它解决什么问题
 
-读论文时最贵的不是翻译，而是**分不清哪句话有据、哪句话是二手转述**。AI 总结里的数字、动机、消融常常是二手甚至编的，直接当结论用会带偏整个判断。本 skill 把"读论文"固化成六种可校验的产出：
+读论文时最贵的不是翻译，而是**分不清哪句话有据、哪句话是二手转述**。AI 总结里的数字、动机、消融常常是二手甚至编的，直接当结论用会带偏整个判断。本 skill 把"读论文"固化成七种可校验的产出：
 
 | 模式 | 触发说法 | 产物 | 关键约束 |
 |------|---------|------|---------|
@@ -44,24 +44,29 @@ learning-<主题>/
 | E 可渲染导图 | 与 C 成套产出 | `导图-<短名>.md` | Mermaid mindmap：唯一 `root((短名))`、四分支顺序固定、层级 ≤4、节点文本禁用 ASCII `( ) [ ] { } , ; : %` |
 | F 难点与解答 | "这篇论文有什么难点" | `难点-<短名>.md` | ≥3 条难点，每条含 `**难点**` / `**解答**`，解答必须带来源标记 |
 | D 汇总综述 | "写文献综述" | `综述-<主题>.md` | 五节固定结构、`[num]` 标注、不给文献列表 |
+| G 笔记库索引 | "整理我的论文笔记库"；每次交付后自动维护 | `paper-notes/README.md` | 固定五节 + 条目形状（链接 + 一句话结论 + 证据/代码括注）；增量只追加、不重排；跨论文冲突数字必须并列；死链与漏登记由校验器拦 |
 
 输入支持 **PDF**（工作区路径或上传件，转成带页锚点的 `_source/` 文本，引用可标到页如 `[原文 p.12]`）、DOI/arXiv、官方摘要、他人总结、官方代码仓库。它的核心机制是**证据分层**：每条断言都要归到 `[原文]` / `[代码]` / `[摘要]` / `[二手]` / `[推断]`，二手数字必须与原文并列或标"待核对"，两个来源冲突时**两个都写、不许调和**。此外强制"读者假设"：有领域通用基础、无本小方向基础，术语首现必须给出大白话解释与相邻概念的分界。导图另出 Mermaid 形态，**并如实说明渲染能力**：Obsidian / GitHub 能出图，DSH Web GUI 只做语法高亮、不出图（要出图就打开 `导图-<短名>.md`）。
+
+笔记多起来之后，`paper-notes/README.md` 作为**合集层**回答另一个问题："我读过哪些论文、它们彼此在哪里冲突、我的证据只到哪一层"。它按主题分组登记（条目 = 链接 + 一句话结论 + 证据类型/有无代码）、给术语速查、跨论文对比、未解决问题与证据强度总览，**只追加、不重排**，冲突数字在对比表里同样并列——像 wiki 一样长期维护，而不是一次性的目录清单。
 
 ### 产出长什么样
 
 ```
-paper-notes/<论文短名>/
-├── README.md              # 索引 + 一句话结论 + 证据强度提示
-├── _source/<论文名>.md     # PDF 导入产物，含 <!-- page:N --> 页锚点
-├── 深读-<短名>.md          # 背景与动机 → 符号表 → 方法 → 实验 → 贡献 → 局限 → 证据与出处
-├── 表格-<短名>.md
-├── 思维导图-<短名>.md      # 四分支大纲（主形态，跨 harness 可读）
-├── 导图-<短名>.md          # 同一导图的 Mermaid 可渲染形态
-├── 难点-<短名>.md          # 难点与解答，每条带来源标记
-└── 综述-<主题>.md          # 多篇时
+paper-notes/
+├── README.md               # 库索引（合集层）：主题清单 + 术语速查 + 跨论文对比 + 未解决问题 + 证据强度总览
+└── <论文短名>/
+    ├── README.md           # 单篇索引 + 一句话结论 + 证据强度提示
+    ├── _source/<论文名>.md  # PDF 导入产物，含 <!-- page:N --> 页锚点
+    ├── 深读-<短名>.md       # 背景与动机 → 符号表 → 方法 → 实验 → 贡献 → 局限 → 证据与出处
+    ├── 表格-<短名>.md
+    ├── 思维导图-<短名>.md   # 四分支大纲（主形态，跨 harness 可读）
+    ├── 导图-<短名>.md       # 同一导图的 Mermaid 可渲染形态
+    ├── 难点-<短名>.md       # 难点与解答，每条带来源标记
+    └── 综述-<主题>.md       # 多篇时
 ```
 
-参考实例：`paper-notes/MFAA/`（对一篇 TIFS 2025 对抗攻击论文的真实产出，五件套同时作为 `paper-reading/sample/` 的回归正样本）。
+参考实例：`paper-notes/MFAA/`（对一篇 TIFS 2025 对抗攻击论文的真实产出，五件套同时作为 `paper-reading/sample/` 的回归正样本），以及 `paper-notes/README.md`（同一篇论文的库索引，可直接 `python paper-reading/scripts/check_paper_note.py paper-notes/README.md --mode index` 校验）。
 
 ## 安装
 
@@ -209,7 +214,7 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
 
 `paper-reading/evals/` 下还有空文本页（触发扫描页告警）与加密样例（触发退出码 4），以及生成它们的 `pdf-cases/make_fixtures.py`。
 
-### 从 PDF 到六种产出（完整流程）
+### 从 PDF 到七种产出（完整流程）
 
 ```
 你：这篇 PDF 帮我精读，顺便出难点文档
@@ -218,6 +223,7 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
     ③ 表格-<短名>.md    9 维表
     ④ 思维导图-<短名>.md + 导图-<短名>.md（Mermaid 形态，Obsidian/GitHub 可出图）
     ⑤ 难点-<短名>.md    难点与解答，每条解答带来源标记
+    ⑥ paper-notes/README.md  库索引登记：主题清单 + 术语速查 + 跨论文对比 + 未解决问题 + 证据强度总览
 ```
 
 ## 仓库结构
@@ -244,17 +250,18 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
 │       ├── quality-rubric.md   # 人工质检清单（只留机器查不了的）
 │       └── self-iteration.md   # RSI 协议：触发条件/最小 diff/宪法区/防膨胀
 └── paper-reading/                 # ← 把这一层作为 skill 目录安装
-    ├── SKILL.md                # 主指令：六种产出 + 证据分层纪律 + 可渲染优先 + Step 1–6
+    ├── SKILL.md                # 主指令：七种产出（含笔记库索引）+ 证据分层纪律 + 可渲染优先 + Step 1–7
     ├── CHANGELOG.md
     ├── scripts/
-    │   ├── check_paper_note.py # 机械校验：结构/公式定界符与独占行/表格/引用范围/模式混装/导图渲染/难点字段，六模式各一套
+    │   ├── check_paper_note.py # 机械校验：结构/公式定界符与独占行/表格/引用范围/模式混装/导图渲染/难点字段/库索引结构，七模式各一套
     │   └── pdf_extract.py      # PDF 导入：逐页提取 + `<!-- page:N -->` 页锚点 + 扫描页标记
     ├── evals/
-    │   ├── run_evals.py        # 回归门禁：good/warn/bad 样本 + sample/ 真实产出 + PDF 抽取器契约
-    │   ├── good-sample/        # 正样本 fixture（六种模式各一）
+    │   ├── run_evals.py        # 回归门禁：good/warn/bad 样本 + sample/ 真实产出 + PDF 抽取器契约 + 论文库索引
+    │   ├── good-sample/        # 正样本 fixture（六种单篇模式各一；库索引正样本在 index-cases/）
     │   ├── warn-sample/        # WARN 类 fixture（应退出 0 但命中指定 WARN）
     │   ├── bad-sample/         # 负样本 fixture（故意违规，勿修）
-    │   └── pdf-cases/          # PDF 抽取器 fixture（3 页样例 / 空白页 / 加密 / 假 PDF）+ make_fixtures.py
+    │   ├── pdf-cases/          # PDF 抽取器 fixture（3 页样例 / 空白页 / 加密 / 假 PDF）+ make_fixtures.py
+    │   └── index-cases/        # 笔记库索引 fixture（正/警/负样本 + 漏登记反向检查）
     ├── feedback/
     │   └── ledger.example.jsonl
     ├── sample/                 # 真实产出（MFAA 论文笔记五件套）= 端到端正样本
@@ -264,6 +271,7 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
         ├── mindmap-template.md    # 模式 C/E：四分支思维导图 + one-shot + Mermaid 形态与渲染能力对照
         ├── faq-template.md        # 模式 F：难点与解答（五字段结构 + 难点五类来源 + 反编造约束）
         ├── review-template.md     # 模式 D：汇总综述骨架 + [num] 规则
+        ├── index-template.md      # 模式 G：笔记库索引骨架 + 条目形状 + 增量续写规则 + 10 个检查码
         ├── formula-style.md       # 公式：Markdown 数学定界符 / 记法约定 / 渲染自检
         ├── input-intake.md        # 输入接入：PDF/摘要/DOI/二手 的可讲深度与页锚点规范
         ├── grounding-rules.md     # 证据五级标记 / 冲突处理 / 可讲深度判定
@@ -278,7 +286,7 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
 - **零工具依赖**：只读写 Markdown，校验器只用标准库；唯一可选依赖是 PDF 回退通道的 `pypdf`（缺失时脚本明确报错并退出码 3，不静默失败）
 - **只承诺渲染器做得到的**：公式用 Markdown 数学、导图另出 Mermaid，但会明确告知目标渲染器能不能出图（DSH Web GUI 只做语法高亮），不把"代码块"说成"已渲染的脑图"
 - **验证 + 自迭代闭环**：校验器输出错误码 → 错误码与返工记入 ledger → 攒够证据才触发复盘 → 改动过 `evals/run_evals.py` 回归门禁才准升版本。skill 只在有证据时改规则，且改完能证明没把好的改坏
-- **可机械化的就不靠自觉**：结构、公式定界符、表格列数、引用编号这类能查的都交给脚本；rubric 只留"忠实性""论证链""讲解密度"这些机器判不了的
+- **可机械化的就不靠自觉**：结构、公式定界符、表格列数、引用编号、库索引的死链与漏登记这类能查的都交给脚本；rubric 只留"忠实性""论证链""讲解密度"这些机器判不了的
 
 ## 贡献 / 反馈
 

@@ -1,3 +1,4 @@
 {"ts":"2026-09-20T21:14:02+08:00","run":"paper-notes/XYZ/","mode":"deep","source":"check_paper_note","codes":["E-DEEP-INLINE"],"detail":"行内公式 $\\lambda$ 只写了左定界符，第 47 行 $ 数量为奇数","action":"fix_output","rule_change":null}
 {"ts":"2026-09-23T09:31:18+08:00","run":"paper-notes/XYZ/","mode":"table","source":"rubric","codes":["忠实性"],"detail":"「主要发现」写入了二手总结的集成攻击 89.6%，未标注与官方摘要 86.6% 的口径冲突","action":"fix_output","rule_change":null}
 {"ts":"2026-09-27T10:02:44+08:00","run":"paper-notes/ABC/","mode":"deep","source":"user_rework","codes":["讲解密度"],"detail":"用户反馈：符号表只列了符号名没给含义，公式后缺“直觉上等价于什么”的一句","action":"rule_change","rule_change":"deep-read-template.md 二、符号表补“含义必须可独立读懂”一列要求"}
+{"ts":"2026-09-28T15:20:00+08:00","run":"paper-notes/","mode":"index","source":"check_paper_note","codes":["E-IDX-LINK"],"detail":"库索引里 ABC 条目指向 ./ABC/README.md，但该目录已改名为 ABC-v2，登记成了死链","action":"fix_output","rule_change":null}
