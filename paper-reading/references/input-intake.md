@@ -6,8 +6,8 @@
 
 | 输入 | 接入方式 | 能讲到什么深度 |
 |------|---------|---------------|
-| 工作区内 PDF 路径 | harness 文档读取能力（DSH 用 `read_document`，支持 `offset`/`limit` 分页）或 `python scripts/pdf_extract.py <pdf> --out <输出目录>/_source/` | 全文：方法、实验、消融、超参、局限 |
-| `.dsh-uploads/<sessionId>/` 下的上传件 | 同上；上传目录里的文件用 `read_document` 读，不要用普通文本读 | 同上 |
+| 工作区内 PDF 路径 | harness 自带的文档读取能力（DSH 为 `read_document`，支持 `offset`/`limit` 分页；Claude Code / Codex 用其内置读取或直接读 PDF），或回退通道 `python scripts/pdf_extract.py <pdf> --out <输出目录>/_source/` | 全文：方法、实验、消融、超参、局限 |
+| 对话里的上传附件 | 同上；用 harness 的文档读取能力读，不要当普通文本读（DSH 的上传目录是 `.dsh-uploads/<sessionId>/`；Claude Code / Codex 是会话工作区或用户指定路径） | 同上 |
 | 扫描件 / 图片型 PDF | 先按 PDF 提取；若整页无可提取文本层，走 OCR（harness 的 OCR 能力或 `read_image` + OCR），并在笔记里标注 `[OCR]` | 正文可用，但公式与数字需人工复核 |
 | DOI / arXiv 链接 / 标题 | 检索取官方摘要与元数据（作者、年份、发表处）；正文仍需用户提供 | 问题、机制大意、主结果口径；**不得**讲公式细节与消融 |
 | 只有他人总结（博客、AI 转述） | 直接按 `[二手]` 接入，数字一律标"待核对" | 只能转述到"二手说了什么" |

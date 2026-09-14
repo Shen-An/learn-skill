@@ -12,6 +12,7 @@
 - **校验器新增两个模式**（`mmd` 与 `faq`，共 14 个新 CODE）：`E-MMD-H1/FENCE/KEYWORD/ROOT/BRANCH/DEPTH/SYNTAX`、`W-MMD-BLOAT/TEXT`、`E-FAQ-H1/SEC/FIELD/CITE/DUP`、`W-FAQ-MISCONCEPT/SELFCHECK/SHORT/TONE`；`--mode auto` 按文件名识别（`思维导图` 优先于 `导图`）
 - **门禁扩容**：新增 `导图-示例.md`、`难点-示例.md` 两个正样本；`sample/` 真实产出增加 `导图-MFAA.md` 与 `难点-MFAA.md`（两者都过 0 ERROR / 0 WARN）
 - **`quality-rubric.md` 扩到 31 条**，新增 G 节"可渲染导图与难点文档"
+- **跨 harness 可移植性**：`SKILL.md` 新增"跨 harness 复用（DSH / Claude Code / Codex 同一份 bundle）"一节（触发方式 / 读 PDF / 回退通道 / 看导图 / 跑校验器逐项对照）；`references/input-intake.md` 把 `.dsh-uploads/` 这类 DSH 专有路径改为按 harness 描述（DSH 为 `.dsh-uploads/<sessionId>/`，Claude Code / Codex 为会话工作区或用户指定路径）
 
 ## 1.1.0 — 2026-09-13
 

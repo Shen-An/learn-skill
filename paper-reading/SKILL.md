@@ -21,7 +21,7 @@ metadata:
 
 ## 输入与输出
 
-- **输入**（接入规范见 `references/input-intake.md`）：工作区内 PDF 路径、`.dsh-uploads/` 下的上传件、DOI/arXiv 链接、官方摘要、他人总结、官方代码仓库。缺材料时先说明"只能讲到哪一层"，不要假装读过全文。
+- **输入**（接入规范见 `references/input-intake.md`）：工作区内 PDF 路径、对话里的上传附件、DOI/arXiv 链接、官方摘要、他人总结、官方代码仓库。缺材料时先说明"只能讲到哪一层"，不要假装读过全文。
 - **输出**：默认 `./paper-notes/<论文短名>/`（用户指定路径优先）：
 
 ```
@@ -39,6 +39,20 @@ paper-notes/<短名>/
 **模式分离是硬约束**：`深读-<短名>.md` 里不得内嵌思维导图或填表；导图、填表、难点文档都必须独立成文件、独立呈现（机械校验 `E-DEEP-MIX` 会拦混装）。
 
 `<短名>` 优先取论文主方法缩写（如 `MFAA`），没有方法名就取标题前 3–5 个实词。
+
+### 跨 harness 复用（DSH / Claude Code / Codex 同一份 bundle）
+
+同一个 `<skill名>/SKILL.md` 目录 bundle 三个 harness 通用：安装就是把整个目录拷进对应扫描目录（DSH 用户级 `~/.agents/skills/`，Claude Code `~/.claude/skills/`，Codex `~/.codex/skills/`），不需要编译。差异只在**入口**与**能力**，不在产出契约：
+
+| 维度 | DSH | Claude Code | Codex |
+|------|-----|-------------|-------|
+| 触发方式 | `/paper-reading` 或自然语言 | `/paper-reading` 或自然语言 | 自然语言（不认斜杠命令） |
+| 读 PDF | `read_document`（可 `offset`/`limit` 分页） | 内置 PDF 读入 | 内置读取，不可用时走脚本 |
+| 回退通道 | `python scripts/pdf_extract.py`（需 `pypdf`，缺失时 exit 3 并提示安装） | 同左 | 同左 |
+| 看 Mermaid 导图 | 只按代码块显示（无渲染器） | 取决于终端/编辑器渲染器 | 取决于渲染器 |
+| 跑校验器 | `python scripts/check_paper_note.py <文件> --mode auto` | 同左 | 同左 |
+
+脚本只用标准库（PDF 回退通道额外需要 `pypdf`），路径按脚本自身位置解析、不依赖当前工作目录，所以在任一 harness 里都能直接跑。
 
 ## 六种产出
 
@@ -58,7 +72,7 @@ paper-notes/<短名>/
 ### Step 1 · 材料接入与定位
 
 1. 按 `references/input-intake.md` 接入材料。有 PDF 就落盘成 `_source/<论文名>.md` 并保留 `<!-- page:N -->` 页锚点：
-   - harness 有文档读取能力（DSH 的 `read_document`）→ 优先用它，分页读完；
+   - harness 有文档读取能力（DSH 的 `read_document`、Claude Code 的 PDF 读入、Codex 的内置读取）→ 优先用它，分页读完；
    - 否则 `python scripts/pdf_extract.py <pdf> --out paper-notes/<短名>/_source/`；
    - 扫描件走 OCR，正文标 `[OCR]`。
 2. 钉死论文身份：标题、作者、年份、发表处、DOI。查不到就写"未核实"，**不要编**。
