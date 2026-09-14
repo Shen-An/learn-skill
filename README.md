@@ -46,6 +46,8 @@ learning-<主题>/
 | D 汇总综述 | "写文献综述" | `综述-<主题>.md` | 五节固定结构、`[num]` 标注、不给文献列表 |
 | G 笔记库索引 | "整理我的论文笔记库"；每次交付后自动维护 | `paper-notes/README.md` | 固定五节 + 条目形状（链接 + 一句话结论 + 证据/代码括注）；增量只追加、不重排；跨论文冲突数字必须并列；死链与漏登记由校验器拦 |
 
+**默认交付集（v1.5.0 起）**：说"读论文 / 讲论文 / 总结 / 精读"，或只丢来 PDF/链接而没点名模式时，默认**成套产出 A + B + C + E + F**（G 照旧必做）——五件全部落盘、各自独立成文件，正文只展开你点名的那个模式，其余静默落盘并在交付开头列出"文件清单 + 每件一句话"与省略原因。点名单个模式（"只讲一下""填这个表""要能渲染的导图"）时就只出那一件；`D` 只在一次给多篇且要求"对比/综述/趋势"时产出，**不进默认集**。
+
 输入支持 **PDF**（工作区路径或上传件，转成带页锚点的 `_source/` 文本，引用可标到页如 `[原文 p.12]`）、DOI/arXiv、官方摘要、他人总结、官方代码仓库。它的核心机制是**证据分层**：每条断言都要归到 `[原文]` / `[代码]` / `[摘要]` / `[二手]` / `[推断]`，二手数字必须与原文并列或标"待核对"，两个来源冲突时**两个都写、不许调和**。此外强制"读者假设"：有领域通用基础、无本小方向基础，术语首现必须给出大白话解释与相邻概念的分界。导图另出 Mermaid 形态，**并如实说明渲染能力**：Obsidian / GitHub 能出图，DSH Web GUI 只做语法高亮、不出图（要出图就打开 `导图-<短名>.md`）。
 
 笔记多起来之后，`paper-notes/README.md` 作为**合集层**回答另一个问题："我读过哪些论文、它们彼此在哪里冲突、我的证据只到哪一层"。它按主题分组登记（条目 = 链接 + 一句话结论 + 证据类型/有无代码）、给术语速查、跨论文对比、未解决问题与证据强度总览，**只追加、不重排**，冲突数字在对比表里同样并列——像 wiki 一样长期维护，而不是一次性的目录清单。
@@ -83,37 +85,50 @@ pwsh install.ps1 -Roots "$HOME\.agents\skills"
 
 脚本自动发现仓库里所有含 `SKILL.md` 的子目录，对每个 (skill × 根目录) 执行：**已是同版本则跳过**（顺手清掉副本里的 `__pycache__` 残留）；否则 **旧版改名保全 → 拷新版 → 逐文件 SHA-256 比对 → 跑该 skill 的回归门禁 → 通过才删旧版，不通过自动回滚**。退出码 0（全成功）/ 1（有失败）。安装副本一律不含本地证据账本 `feedback/ledger.jsonl`（该文件由运行时自建）。默认根目录为 `~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`，可用 `-Roots` 覆盖；`-SkipGate` 跳过门禁（不推荐）、`-KeepBackup` 保留被替换的旧版目录。
 
-### 手动安装
+### 手动安装：三个 harness 各自的装法
 
-#### DSH
+差异只在**入口**与**能力**，产出契约完全一致（同一份 `SKILL.md`）：
 
-```bash
-# 用户级（所有项目可用；热发现，无需重启）
-cp -r learning-wiki ~/.dsh/skills/        # 或 ~/.agents/skills/
-cp -r paper-reading ~/.dsh/skills/
-# 项目级
-cp -r learning-wiki <项目>/.dsh/skills/   # 或 <项目>/.agents/skills/
-cp -r paper-reading <项目>/.dsh/skills/
+| 维度 | DSH | Claude Code | Codex |
+|------|-----|-------------|-------|
+| 用户级扫描目录 | `~/.agents/skills/` | `~/.claude/skills/` | `~/.codex/skills/` |
+| 项目级扫描目录 | `<项目>/.agents/skills/` | `<项目>/.claude/skills/` | 见官方文档 |
+| 触发方式 | `/paper-reading` 或自然语言 | `/paper-reading` 或自然语言 | **自然语言**（不认斜杠命令） |
+| 读 PDF | `read_document`（可 `offset`/`limit` 分页） | 内置 PDF 读入 | 内置读取，不可用时走脚本 |
+| 看 Mermaid 导图 | 只按代码块显示（无渲染器） | 取决于终端/编辑器 | 取决于渲染器 |
+| 跑校验器 | `python paper-reading/scripts/check_paper_note.py <文件> --mode auto` | 同左 | 同左 |
+
+**DSH**——用户级热发现，装完立刻可用，不用重启：
+
+```powershell
+# 用户级：所有项目可用
+Copy-Item learning-wiki,paper-reading "$HOME\.agents\skills\" -Recurse -Force
+# 项目级：随仓库共享给同项目的人
+Copy-Item learning-wiki,paper-reading .\.agents\skills\ -Recurse -Force
 ```
 
-#### Claude Code
-
 ```bash
-# 个人级（所有项目可用）
-cp -r learning-wiki ~/.claude/skills/
-cp -r paper-reading ~/.claude/skills/
-# 项目级（可提交进仓库共享给团队）
-cp -r learning-wiki <项目>/.claude/skills/
+# macOS / Linux 等价写法
+cp -r learning-wiki paper-reading ~/.agents/skills/
+cp -r learning-wiki paper-reading <项目>/.agents/skills/
 ```
 
-#### Codex
+**Claude Code**——个人级所有项目可用，装完重开会话让它重新扫描：
 
 ```bash
-# 全局
-cp -r learning-wiki ~/.codex/skills/
-cp -r paper-reading ~/.codex/skills/
-# 项目级见官方文档：https://learn.chatgpt.com/docs/build-skills
+cp -r learning-wiki paper-reading ~/.claude/skills/
+# 项目级：可提交进仓库共享给团队
+cp -r learning-wiki paper-reading <项目>/.claude/skills/
 ```
+
+**Codex**——全局目录，触发靠自然语言（不认斜杠命令）：
+
+```bash
+cp -r learning-wiki paper-reading ~/.codex/skills/
+# 项目级与更多细节见官方文档：https://learn.chatgpt.com/docs/build-skills
+```
+
+这三个根目录就是 `install.ps1` 的默认值，要改位置用 `-Roots`。装完验一下：在对应 harness 里说一句"讲一下这篇论文"，看它是否照 `SKILL.md` 的 Step 1 先落 `_source/`、再按模式成文，最后跑一次校验器。
 
 ## 使用
 
@@ -288,14 +303,79 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
 - **验证 + 自迭代闭环**：校验器输出错误码 → 错误码与返工记入 ledger → 攒够证据才触发复盘 → 改动过 `evals/run_evals.py` 回归门禁才准升版本。skill 只在有证据时改规则，且改完能证明没把好的改坏
 - **可机械化的就不靠自觉**：结构、公式定界符、表格列数、引用编号、库索引的死链与漏登记这类能查的都交给脚本；rubric 只留"忠实性""论证链""讲解密度"这些机器判不了的
 
-## 贡献 / 反馈
+## 自迭代改进（RSI）与 PR 流程
 
-Issue & PR 欢迎。改完先跑回归门禁（必须全绿）：
+### 为什么它需要一套流程
 
-```bash
-python learning-wiki/evals/run_evals.py
-python paper-reading/evals/run_evals.py
-pwsh install.ps1                # 门禁全绿后同步到三个平台（同样会跑门禁 + 哈希校验）
+skill 的规则不能"想到就改"：一次随手的措辞变更可能把一条规则悄悄改坏，而且事后没人知道当初为什么改。所以两个 skill 都带一套 **RSI 协议**（验证提供信号 → 迭代消费信号）：**改动只由证据驱动**——先记账、攒够证据、跑门禁、人工确认，才允许动规则。
+
+证据账本 `feedback/ledger.jsonl`（只追加，不修改不删除）：
+
+| 字段 | 取值 |
+|------|------|
+| `source` | `check_paper_note`（校验器报的 ERROR，或被判定"本应在生成时避免"的 WARN）、`rubric`（人工过质检清单导致的返工）、`user_rework`（用户要求返工、修正或表达不满） |
+| `mode` | `deep` / `table` / `mindmap` / `mmd` / `faq` / `review`；PDF 导入与抽取器相关记 `pdf`（与 `check_paper_note.py --mode` 取值一致，勿造新词） |
+| `action` | `fix_output`（只修本次产出）或 `rule_change`（要改 skill 本身） |
+
+**触发条件**（满足其一才进入迭代）：① 用户明确要求"复盘 / 迭代这个 skill"；② 自上次版本 bump 以来 ledger 新增 ≥ 5 条；③ 出现违反"宪法区"的记录（证据分层、冲突数字必须并列、不编造、局限单列、无寒暄）→ 立即触发，不等攒数。
+
+**六步流程**：聚类根因（缺规则 / 规则表述模糊 / 校验器查不出 / 模板诱导了坏产出）→ **最小 diff**（一轮最多改一条规则或一个检查项，并注明依据的 ledger 记录）→ 门禁 → 人工确认（**AI 不得自行升版本**）→ 升版本 + 写 `CHANGELOG.md` + 追加一条 `action:"rule_change"` 闭环 → 机械 / 人工同步（能机械化的移进校验器，机器查不了的人工项留在 rubric）。
+
+门禁怎么选：动了 `scripts/` 或 fixture → **必跑** `python evals/run_evals.py`，全绿才继续，且新增检查项必须同步在 `evals/bad-sample/` 埋对应违规、在 `run_evals.py` 加断言；只动 `SKILL.md` 或模板文字 → **用最近一篇真实论文重跑对应模式**，对比产出有没有回归。
+
+提案模板（交给维护者确认时照这个填）：
+
+```text
+问题:     ledger 09-20、09-27 两条同类：二手来源数字未标注即写入"主要发现"
+根因:     deep-read-template 的"主要发现"未强制来源标记，且无坏例子对照
+提案:     deep-read-template.md「四、实验验证」补一句"每个数字后缀来源标记"（+1 行 diff）
+依据:     2026-09-20T21:14 / 2026-09-27T10:02
+门禁:     run_evals 全 PASS；重跑 09-27 那篇论文的 deep 产出对比无回归
 ```
 
-再在三个平台里至少一个实测一次（对话/论文 → 产出 → 对照对应 `quality-rubric.md` 自检）。改规则的完整流程见各 skill 的 `references/self-iteration.md`。
+协议全文见 `paper-reading/references/self-iteration.md` 与 `learning-wiki/references/self-iteration.md`，含宪法区（只可收紧、不可放松）与防膨胀规则（不可妥协的规则 ≤ 10 条；连续两版在 ledger 中 0 命中的规则列为删除候选；优先改写原规则而不是追加例外条款）。
+
+### 提 PR 的流程
+
+```bash
+git clone https://github.com/Shen-An/learn-skill.git
+cd learn-skill
+git switch -c fix/paper-reading-<短描述>
+
+# 改 skill：SKILL.md / references/ / scripts/ / evals/
+python learning-wiki/evals/run_evals.py      # 动了 scripts/ 或 fixture：必跑，必须全绿
+python paper-reading/evals/run_evals.py
+pwsh install.ps1 -DryRun                     # 确认安装面没被改坏（只看会做什么，不写盘）
+
+git add -A
+git commit -m "fix(paper-reading): <一句话说明改了哪条规则、依据哪条 ledger>"
+git push -u origin fix/paper-reading-<短描述>
+gh pr create --fill --base main
+```
+
+PR 描述里带齐四样东西（缺一样通常会被打回）：
+
+1. **依据**：对应的 ledger 记录（`ts` + 第几条）或 issue 编号——没有证据的"我觉得应该这样"不合并
+2. **门禁输出**：动了 `scripts/` 或 fixture 时，贴断言数变化（如 `gate 298 → 312 assertions`）与全绿结果
+3. **真实产出对比**：只动 `SKILL.md` / 模板文字时，贴"最近一篇真实论文重跑该模式"的前后差异
+4. **新增检查项**：说明在 `evals/bad-sample/` 埋了什么违规、`run_evals.py` 加了哪条断言去抓它（新检查项没有负样本等于没测）
+
+硬性约定：**一轮 PR 只改一条规则或一个检查项**；不新增超过 10 条的"不可妥协的规则"；优先改写原规则，而不是追加例外条款。合并后由维护者升版本、写 `CHANGELOG.md`、打 tag 并发 release。
+
+### 发版
+
+- 版本语义：新增 / 修改规则 → minor；纯措辞微调 → patch；宪法区收紧 → minor
+- 顺序：`CHANGELOG.md` 先写清"来自用户要求 / 依据 ledger 第 N 条" → 打 tag `vX.Y.Z` → 发 release（release notes 直接用 CHANGELOG 对应段落）
+- 一次发版对三个 harness 同时生效：改完记得 `pwsh install.ps1` 把新版同步到你本机的三个 skill 根目录
+
+## 贡献 / 反馈
+
+Issue & PR 欢迎。最短路径：
+
+```bash
+python learning-wiki/evals/run_evals.py     # 回归门禁，必须全绿
+python paper-reading/evals/run_evals.py
+pwsh install.ps1                           # 同步到三个平台（同样会跑门禁 + 哈希校验）
+```
+
+提交前请在三个平台里至少实测一个（真实对话 / 论文 → 产出 → 对照对应 `quality-rubric.md` 自检）。改规则要走的流程、证据格式与 PR 要求见上一节；协议原文见 `paper-reading/references/self-iteration.md` 与 `learning-wiki/references/self-iteration.md`。
