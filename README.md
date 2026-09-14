@@ -74,6 +74,19 @@ paper-notes/
 
 三个平台都遵循 `<skill名>/SKILL.md` 目录 bundle 格式，把目标 skill 文件夹整个放进对应扫描目录即可，无需编译安装。
 
+### 最省事：直接让 harness 自己装（自然语言）
+
+**三个 harness 都能听懂"帮我装这个 skill"，不用手敲 `cp`。** 把下面这段话原样丢给 DSH / Claude Code / Codex 就行：
+
+```text
+安装 https://github.com/Shen-An/learn-skill 里的 paper-reading 与 learning-wiki 两个 skill：
+clone 仓库 → 把两个 skill 目录整个拷进你本机的 skill 扫描目录 → 跑各自 evals/run_evals.py 确认门禁全过 → 报告装到了哪里、版本号是多少。
+```
+
+短一点的说法同样有效：「装 learn-skill 这个仓库里的 skill」「安装 Shen-An/learn-skill 的 paper-reading」。它会自己找到该落哪个目录——DSH `~/.agents/skills/`、Claude Code `~/.claude/skills/`、Codex `~/.codex/skills/`——装完再跑一遍门禁确认装上去的是好的。**Codex 不认斜杠命令**，这一步全程自然语言；DSH 与 Claude Code 也可以直接说人话，不必写成 `/` 命令。
+
+想钉版本就说清 tag（「装 v1.5.0 那一版」→ `git clone --branch v1.5.0`）；网络受限、或你想先看它做什么再落盘，就退到下面两条路。
+
 ### 一条命令同步：`install.ps1`
 
 ```powershell

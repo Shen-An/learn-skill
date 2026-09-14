@@ -11,7 +11,7 @@
 - **`quality-rubric.md` 第 21 条改写**（人工项，机制上无法机械化）：默认集缺件且未在交付开头声明原因 = 不通过。条目总数仍为 38，**未新增不可妥协规则**（仍 10 条，符合防膨胀上限）
 - **本轮不动 `scripts/` 与 fixtures**：「该出几件」是意图问题，逐文件跑的校验器判不了，不硬塞检查项
 - **门禁**：`evals/run_evals.py` 对 `SKILL.md` / `references/` 无断言，且本轮未改 `scripts/` 与 fixtures → 免跑；替代门禁为**真实产出回归**——同一篇 Sphinx 按新默认重跑，五件逐个过 `check_paper_note`（deep / table / mindmap / mmd / faq）0 ERROR、库索引 `--mode index` 10 项全过，并与已交付的 `深读-Sphinx.md` 对照确认无退化
-- **`README.md` 同步**（用户要求）：安装段改成三个 harness 各自的装法——DSH `~/.agents/skills/`、Claude Code `~/.claude/skills/`、Codex `~/.codex/skills/` 的"目录 / 触发 / 读 PDF / 看导图 / 跑校验器"对照表加分平台命令（并纠正旧文里 DSH 写 `~/.dsh/skills/` 的说法：该目录在本机存在但是空的，实际生效的是 `~/.agents/skills/`）；新增「自迭代改进（RSI）与 PR 流程」整节（账本字段与取值、三个触发条件、六步流程、门禁怎么选、diff 提案模板、提 PR 要带的四项材料、发版顺序）
+- **`README.md` 同步**（用户要求）：安装段改成三个 harness 各自的装法——DSH `~/.agents/skills/`、Claude Code `~/.claude/skills/`、Codex `~/.codex/skills/` 的"目录 / 触发 / 读 PDF / 看导图 / 跑校验器"对照表加分平台命令（并纠正旧文里 DSH 写 `~/.dsh/skills/` 的说法：该目录在本机存在但是空的，实际生效的是 `~/.agents/skills/`）；安装段开头新增**「最省事：直接让 harness 自己装（自然语言）」**——把一段话丢给 DSH / Claude Code / Codex 即可，它会自己 clone、拷进扫描目录、跑门禁并报告装到哪与版本号（Codex 不认斜杠命令，这条路本就该用自然语言；DSH 与 Claude Code 也可以直接说人话）；新增「自迭代改进（RSI）与 PR 流程」整节（账本字段与取值、三个触发条件、六步流程、门禁怎么选、diff 提案模板、提 PR 要带的四项材料、发版顺序）
 
 **已知边界**：
 
