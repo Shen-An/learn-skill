@@ -2,6 +2,10 @@
 
 版本号规则与修改流程见 `references/self-iteration.md`：任何版本变更必须有 ledger 证据 + `python evals/run_evals.py` 门禁通过 + 人工确认。
 
+## 1.3.1 — 2026-09-14
+
+- **协议枚举补全**（用户要求，依据 ledger 第 6 条）：`references/self-iteration.md` 里 ledger 记录的 `mode` 枚举原为 `deep` / `table` / `mindmap` / `review`，但从 1.2.0 起实际已经在用 `mmd`、`faq`（第 3、4 条记录）以及 PDF 通道（第 5 条），枚举没跟上，记账时无值可填。现补全为 `deep` / `table` / `mindmap` / `mmd` / `faq` / `review`，PDF 导入与抽取器相关改动记 `pdf`，并注明与 `check_paper_note.py --mode` 取值一致、勿再造新词
+
 ## 1.3.0 — 2026-09-14
 
 来自用户对 RSI 覆盖的盘点要求（触发条件 1）：**`pdf_extract.py` 此前在门禁里零覆盖**——把它改坏（页锚点格式、输出文件名、退出码），`run_evals.py` 照样全绿，RSI 收不到任何机械信号。依据见 `feedback/ledger.jsonl` 第 5 条记录。
