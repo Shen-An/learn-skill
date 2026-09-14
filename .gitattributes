@@ -1,0 +1,9 @@
+# PDF fixture 必须逐字节保真。
+# 若不做声明，git 会把这些以 ASCII 为主的 PDF 当作文本；在 Windows / macOS 上
+# core.autocrlf=true 时，checkout 会把 LF 换成 CRLF，fixture 字节随之改变
+# （实测 三页样例.pdf 1365 → 1484 字节）。门禁对 CRLF 是容忍的（pypdf 会重建 xref），
+# 但那会让"仓库里提交的样本"和"实际拿来测的样本"不一致，所以显式按二进制处理。
+*.pdf binary
+
+# 证据账本是本地数据，只公开格式示例（与 .gitignore 同源：即使被 -f 强加也不该被当成文本合并）
+*.jsonl text eol=lf
