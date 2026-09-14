@@ -1,0 +1,8 @@
+# 这不是 PDF
+
+这是一份普通 Markdown 文本，只是扩展名被改成了 .pdf，
+用来触发 pdf_extract.py 的解析失败分支（退出码 1）。
+
+- 没有 %PDF- 文件头
+- 没有 xref 表
+- pypdf 应在 PdfReader 构造阶段抛异常

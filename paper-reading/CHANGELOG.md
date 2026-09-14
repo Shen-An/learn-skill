@@ -2,6 +2,14 @@
 
 版本号规则与修改流程见 `references/self-iteration.md`：任何版本变更必须有 ledger 证据 + `python evals/run_evals.py` 门禁通过 + 人工确认。
 
+## 1.3.0 — 2026-09-14
+
+来自用户对 RSI 覆盖的盘点要求（触发条件 1）：**`pdf_extract.py` 此前在门禁里零覆盖**——把它改坏（页锚点格式、输出文件名、退出码），`run_evals.py` 照样全绿，RSI 收不到任何机械信号。依据见 `feedback/ledger.jsonl` 第 5 条记录。
+
+- **门禁新增用例 5「PDF 抽取器契约」**：断言 187 → **256**（+69），覆盖输出文件名 `<stem>.md`（防 `demo.pdf.md` 回归）、头部四字段、三页锚点各一次且顺序正确、正文文本真的被抽出、`--pages 2` 页码不重编号、`--pages` 越界 / 缺参数 / 两个位置参数 / 非 `.pdf` 输入 → 退出码 2、假 PDF → 1、空白页 → 0 + 扫描页告警与占位、加密 → 4、目录模式一层 vs `--recursive`、空目录 → 0 + WARN、`--out` 与默认 `_source/` 两条落盘路径、源 PDF 哈希不变、缺依赖（以 `MetaPathFinder` 屏蔽 `pypdf`/`PyPDF2` 的子进程）→ 3
+- **新增 fixture** `evals/pdf-cases/`：`三页样例.pdf`（3 页 ASCII 文本标记）、`空白页样例.pdf`（无文本层）、`加密样例.pdf`（非空 user password）、`假PDF.pdf`（Markdown 改名）、生成脚本 `make_fixtures.py`（可重跑重建）
+- **测试强度自证（变异测试）**：对 `pdf_extract.py` 逐项施加 5 处变异（`stem→name`、页锚点格式、`--pages` 重编号、`EXIT_USAGE 2→1`、`EXIT_ENCRYPTED 4→1`），实测 **5/5 全部让门禁变红**（报错精确指向用例 5 的对应断言），恢复后脚本哈希与变异前一致、门禁复绿——证明新断言不是摆设
+
 ## 1.2.0 — 2026-09-13
 
 两项来自用户直接要求的迭代（触发条件 1）。依据见 `feedback/ledger.jsonl` 第 3 条记录。
