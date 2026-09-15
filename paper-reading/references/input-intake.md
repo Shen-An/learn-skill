@@ -23,6 +23,71 @@
 
 `pdf_extract.py` 的退出码：`0` 成功；`2` 参数错误（页码范围非法）；`3` 缺依赖（`pypdf`/`PyPDF2` 都没装）；`4` PDF 已加密。
 
+### 补充：回退脚本 `pdf_extract.py` 的用法与产出格式
+
+只在 harness 没有文档读取能力、或需要把 PDF 固化成可 grep / 可 diff 的文本时才用（正常情况**直接把 PDF 交给 harness 读**即可，不必落盘）：
+
+```bash
+# 单篇：产出 <PDF 所在目录>/_source/<论文名>.md
+python scripts/pdf_extract.py 论文.pdf
+
+# 指到笔记目录下，便于精读时引用
+python scripts/pdf_extract.py 论文.pdf --out paper-notes/<短名>/_source/
+
+# 只抽第 3 页 / 第 1–20 页（闭区间）
+python scripts/pdf_extract.py 论文.pdf --pages 3
+python scripts/pdf_extract.py 论文.pdf --pages 1-20
+
+# 一个目录里的所有 PDF（默认只扫一层，加 --recursive 递归）
+python scripts/pdf_extract.py ./pdfs/ --recursive
+```
+
+依赖只有 `pypdf`（没装就 `pip install pypdf`；脚本也兼容旧的 `PyPDF2`）。
+
+产出 `<输出目录>/<论文主文件名>.md`（`demo.pdf` → `demo.md`，**不带** `.pdf`）：
+
+```markdown
+<!-- source: demo.pdf -->
+<!-- pages: 3 -->
+<!-- extracted: 2025-01-01T12:00:00+08:00 -->
+<!-- tool: pdf_extract.py -->
+
+<!-- page:1 -->
+第 1 页正文……
+
+<!-- page:2 -->
+> [本页无可提取文本层，可能是扫描件，需要 OCR]
+```
+
+头部四行是元信息（不污染正文解析）；每页正文前有 `<!-- page:N -->`，`N` 是 PDF 的**物理页码**——`--pages` 只裁剪输出范围，不会把页码重编号。**这些锚点就是笔记里页码引用的依据**（正文写 `[原文 p.12]`，读者能翻页核对；声明了 `PDF 全文` 却一个锚点都没有会被 `W-DEEP-PAGE` 拦下）。
+
+**退出码与常见故障**
+
+| 退出码 | 含义 | 怎么办 |
+|---|---|---|
+| 0 | 成功（目录里没有 PDF 也算成功，只给 WARN） | — |
+| 1 | 解析失败：文件损坏、或根本不是 PDF | 确认文件能打开；把 `.md` 改名成 `.pdf` 会走到这里 |
+| 2 | 参数或路径错误 | 缺参数、`--pages` 格式非法/越界、路径不存在、输入不是 `.pdf` |
+| 3 | 缺依赖 | `pip install pypdf`（受限环境 `pip install --user pypdf`） |
+| 4 | PDF 已加密，空密码解不开 | 先解密另存，再导入 |
+
+目录模式下**逐文件处理**（单个文件失败不影响其它文件继续抽），最终退出码取各文件退出码的**最大值**——目录里只要有一个加密 PDF，整批就是 `4`，但其它文件其实已经正常写出来了。
+
+| 现象 | 原因 | 怎么办 |
+|---|---|---|
+| `[WARN ] 疑似扫描页` + `> [本页无可提取文本层…]` 占位 | 该页是图片、没有文本层 | 走 OCR（harness 的 OCR 或 `read_image`），笔记里把该处来源标成 `[OCR]` |
+| `[WARN ] 目录下没有 PDF 文件` | 目录模式默认只扫一层 | 加 `--recursive`，或直接指向具体文件 |
+| 引用的页码与论文印刷页码对不上 | 带封面/预印本的 PDF 物理页码 ≠ 印刷页码 | 锚点永远是物理页码；笔记里注明"页码按 PDF 计" |
+| 公式抽出来是乱码 | 文本层里的数学符号编码不规范 | 以 PDF 为准，用 harness 文档读取复看该页；公式按 `references/formula-style.md` 重写 |
+
+**想先试试脚本？** 仓库自带 3 页假论文 fixture，跑一遍就能看到完整输出结构（`--out` 指到工作目录，别写在仓库里）：
+
+```bash
+python scripts/pdf_extract.py evals/pdf-cases/三页样例.pdf --out ./pdf-demo
+```
+
+`evals/pdf-cases/` 下还有空文本页（触发扫描页告警）与加密样例（触发退出码 4），以及生成它们的 `make_fixtures.py`。
+
 ## 三、必须落纸的声明
 
 「证据与出处」小节的第一行必须写来源类型，取值从下列枚举里挑（多项用 ` + ` 连接）：
