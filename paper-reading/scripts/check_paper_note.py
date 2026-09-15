@@ -2,10 +2,14 @@
 r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记做机械校验。
 
 用法:
-    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review|index|terms] [--refs N]
+    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review|index|terms|note] [--refs N]
 
 模式判定 --mode auto（默认，顺序敏感）:
     首行非空内容恰为 `<!-- paper-reading: collection-index -->` → index（该标记检查先于文件名词干判定）；
+    文件名是 `README.md` 且文件里出现 `<!-- paper-reading: note-index -->` 标记 → note（判定排在 index 标记
+    之后、文件名词干之前；标记内部允许空白，因为"漏识别"的代价不对称：把一份合规的单篇索引当深读讲解去查
+    会报出一串无关的 E-DEEP-*。显式校验仍然要求首个非空行**逐字**等于该标记，所以标记写错的文件会被点名
+    E-NOTE-MARKER，而不是静默回落成 deep）；
     含 深读/精读 → deep；含 表格/填表 → table；含 思维导图 → mindmap；
     否则含 导图/mermaid/mmd → mmd；含 难点/问答/faq（大小写不敏感）→ faq；含 综述 → review；
     含 术语/terms（大小写不敏感）→ terms（token 与上面各项都不重叠，故不会抢走 导图/难点 等既有 token）；
@@ -30,6 +34,10 @@ r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记�
   terms:   E-TERM-SEC / E-TERM-H1 / E-TERM-TABLE / E-TERM-EN / E-TERM-CITE
            E-TERM-EMPTY / E-TERM-DUP / W-TERM-MIN / W-TERM-QUOTE / W-TERM-ABBR / W-TERM-SORT
            （共 11 项，专业术语表中英对照 术语-<短名>.md）
+  note:    E-NOTE-MARKER / E-NOTE-H1 / E-NOTE-META / E-NOTE-SEC / E-NOTE-EVID
+           E-NOTE-LINK / E-NOTE-COVER / E-NOTE-KIND
+           W-NOTE-CONCL / W-NOTE-ENTRY / W-NOTE-SRC
+           （共 11 项，单篇索引 paper-notes/<短名>/README.md；模板 references/note-index-template.md）
 
 输出: 每条问题一行 `[ERROR] <CODE> <文件名>: <消息>` / `[WARN ] <CODE> <文件名>: <消息>`（WARN 的方括号内为 4 字母 + 1 空格）；
 末行汇总:
@@ -139,7 +147,7 @@ try:  # Windows GBK 控制台防御：保证中文输出不抛 UnicodeEncodeErro
 except Exception:
     pass
 
-MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review", "index", "terms")
+MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review", "index", "terms", "note")
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 FENCE_LINE_RE = re.compile(r"^\s*```")
@@ -167,8 +175,12 @@ MM_BRANCHES = ("研究背景与目标", "研究方法", "关键研究结果", "�
 FAQ_FIELD_RE = re.compile(r"\*\*\s*([^*：:\s]{1,10})\s*\*\*\s*[:：]")
 EN_WORD_RE = re.compile(r"[A-Za-z]+")
 _FAQ_CITE_LABELS = ("原文", "代码", "摘要", "二手", "OCR", "推断")
+# 出处标记：裸标签 / 带页码（[原文 p.6]、[原文 p.7-8]）/ 定位标签（[实验]、[实验 p.6]）/ 数字引用（[19]）。
+# 带页码分支曾缺失，导致 faq-template.md 明列为合法的 [原文 p.N] 被误报 E-FAQ-CITE（见 ledger 第 12 条①）；
+# `实验` 是历史样本里早已大量使用的定位标签（等价于"原文实验章节"），此前处于"文档没写、校验器不认、
+# 样本照用"的三方不一致状态，现按 references/grounding-rules.md 的表格正式入册。
 FAQ_CITE_RE = re.compile(
-    r"\[(?:" + "|".join(_FAQ_CITE_LABELS) + r"|\d+)\]"
+    r"\[(?:" + "|".join(_FAQ_CITE_LABELS) + r"|实验)(?:\s*p\.\s?\d+(?:-\d+)?)?\]|\[\d+\]"
 )
 RV_SECTIONS = ("研究主题概述", "各论文主要贡献", "研究方法对比", "主要发现汇总", "研究趋势与展望")
 
@@ -203,10 +215,11 @@ TERMS_TERM_SECTIONS = ("二、核心术语（本文自造与方法名）", "三�
 TERMS_QUOTE_SECTION = "五、英文原句摘录"
 TERMS_ABBR_SECTION = "六、缩略语索引"
 TERMS_H1_RE = re.compile(r"^#\s+\S.*?\s+专业术语表（中英对照）\s*$")
-# 出处列：裸标记，或带页码的 [原文 p.7] / [原文 p.7-8]（页码分支必须从一开始就合法）
+# 出处列：裸标记、带页码的 [原文 p.7] / [原文 p.7-8]、定位标签 [实验]（页码分支必须从一开始就合法）；
+# 词汇与 FAQ_CITE_RE 保持一致，避免两个模式对"什么算合法出处"给出不同答案。
 _TERMS_CITE_LABELS = ("原文", "代码", "摘要", "二手", "OCR", "推断")
 TERMS_CITE_RE = re.compile(
-    r"\[(?:" + "|".join(_TERMS_CITE_LABELS) + r")(?:\s*p\.\s?\d+(?:-\d+)?)?\]",
+    r"\[(?:" + "|".join(_TERMS_CITE_LABELS) + r"|实验)(?:\s*p\.\s?\d+(?:-\d+)?)?\]",
     re.IGNORECASE,
 )
 TERMS_PLACEHOLDERS = frozenset({"-", "—", "tbd", "无", "n/a"})
@@ -216,6 +229,30 @@ TERMS_MIN_QUOTES = 5
 TERMS_ABBR_RE = re.compile(r"^[A-Z0-9][A-Z0-9+\-.]{1,15}$")
 TERMS_ITEM_RE = re.compile(r"^([-*+]|\d+[.)])(\s+|$)")
 TERMS_EN_WORD_RE = re.compile(r"[A-Za-z]{2,}")
+
+# note 模式（单篇索引 paper-notes/<短名>/README.md）
+# 由来（feedback/ledger.jsonl 第 12 条②）：这一层此前没有任何机械校验，真实踩到的是
+# `paper-notes/MFAA/README.md` 的「文件」清单漏登记了两件早已交付的产出（导图、难点），
+# 补第三件（术语）时又差点漏——清单不全的索引比没有索引更误导人，故定成可校验形态。
+NOTE_MARKER = "<!-- paper-reading: note-index -->"
+# --mode auto 用宽松形式认标记（标记内部允许空白），显式校验仍要求首个非空行逐字等于 NOTE_MARKER。
+# 宽容只服务于"别把单篇索引误判成 deep"，不放松任何一条硬要求。
+NOTE_MARKER_RE = re.compile(r"<!--\s*paper-reading\s*:\s*note-index\s*-->")
+NOTE_H1_RE = re.compile(r"^#\s+\S.*论文笔记索引\s*$")
+NOTE_SECTIONS = ("文件", "证据强度提示")
+NOTE_ENTRY_SECTION = "待核入口"
+# 第一个 ## 之前必须出现的两个段落前缀（论文身份 + 一句话结论）
+NOTE_META_PREFIXES = ("论文：", "一句话结论：")
+NOTE_CONCL_PREFIX = "一句话结论："
+NOTE_CONCL_MIN = 80  # 一句话结论正文长度下限：中文字符数 + 英文单词数
+# 「## 文件」的完整性白名单前缀（只扫同目录一层，不递归）
+NOTE_DELIVERABLE_RE = re.compile(r"^(深读|表格|思维导图|导图|难点|术语|综述)-.+\.md$")
+# 交付物登记的形态标签：`（模式 A）`，`模式` 与大写字母之间允许空白，字母之后到 `）` 之前允许任意说明后缀
+# （真实文件里两种写法并存：`：精读讲解（模式 A）` 与 `：四分支思维导图（模式 C，文本大纲）`）
+NOTE_KIND_RE = re.compile(r"（模式\s*[A-Z]+[^）]*）")
+# markdown 行内链接：`[文本](目标)`（图片 `![alt](目标)` 的目标同样参与存在性校验）
+NOTE_LINK_RE = re.compile(r"\[[^\]\n]*\]\(([^()\s]+)\)")
+NOTE_SOURCE_DIR = "_source"
 
 
 # ---------------------------------------------------------------- 通用工具
@@ -893,7 +930,9 @@ def check_faq(lines: list[str]) -> tuple[list[tuple[str, str]], int]:
         if not FAQ_CITE_RE.search(para):
             problems.append(
                 ("E-FAQ-CITE",
-                 f"小节「{title}」的 **解答** 段落没有任何来源标记（[原文]/[代码]/[摘要]/[二手]/[OCR]/[推断]/[数字]）")
+                 f"小节「{title}」的 **解答** 段落没有任何来源标记"
+                 f"（允许 [原文]/[代码]/[摘要]/[二手]/[OCR]/[推断]、带页码的 [原文 p.6]、"
+                 f"实验章节定位标签 [实验]/[实验 p.6]、或数字引用 [19]）")
             )
 
         # W-FAQ-MISCONCEPT / W-FAQ-SELFCHECK
@@ -1382,11 +1421,263 @@ def check_terms(lines: list[str], path: Path) -> tuple[list[tuple[str, str]], in
     return problems, executed
 
 
+# ---------------------------------------------------------------- note 模式
+
+def note_paragraphs(lines: list[str], start: int, end: int) -> list[tuple[int, str]]:
+    """[start, end) 区间内按空行/标题切段的段落：[(起始行号0基, 段落全文)]，段内换行保留。
+
+    注意 0 基行号，报错时 +1；段首行首（去空白后）即判定"以某前缀开头"的那一行。
+    """
+    paras: list[tuple[int, str]] = []
+    buf: list[str] = []
+    first = -1
+    for i in range(start, end):
+        ln = lines[i]
+        if HEADING_RE.match(ln):  # 标题独占一段，不与前后正文粘连
+            if buf:
+                paras.append((first, "\n".join(buf)))
+                buf = []
+            continue
+        if ln.strip():
+            if not buf:
+                first = i
+            buf.append(ln.strip())
+        elif buf:
+            paras.append((first, "\n".join(buf)))
+            buf = []
+    if buf:
+        paras.append((first, "\n".join(buf)))
+    return paras
+
+
+def note_link_target(base: Path, target: str) -> Path | None:
+    """把行内链接目标解析成本地路径；外链/邮件/纯锚点返回 None（不参与存在性校验）。
+
+    目标里的 `#fragment` 只用于锚点定位，解析文件时先剥掉（文件存在性才是本检查的对象）。
+    """
+    if target.startswith("#") or target.lower().startswith(("http://", "https://", "mailto:")):
+        return None
+    file_part = target.split("#", 1)[0]
+    if not file_part:
+        return None
+    return base / file_part
+
+
+def check_note(lines: list[str], path: Path) -> tuple[list[tuple[str, str]], int]:
+    """校验单篇索引 paper-notes/<短名>/README.md（模式 note，共 11 项检查）。
+
+    契约见 references/note-index-template.md。`lines` 必须是**未剔除 HTML 注释**的原文行——
+    标记行 `<!-- paper-reading: note-index -->` 本身就是一条注释，先剔除就再也判不出
+    "它是不是首个非空行"；函数内部自己再剔一遍（strip_comments 保留换行数，行号仍与原文对齐）。
+
+    链接存在性只认**正文**里的行内链接：代码围栏内（格式示例）与行内代码内的 `[x](y)` 都不算，
+    否则一份写着"本文件长这样"示例的索引会被自己的示例报成死链。
+    """
+    problems: list[tuple[str, str]] = []
+    executed = 0
+    note_dir = path.parent
+
+    raw_fi = first_nonempty(lines)
+    marker_line = lines[raw_fi].strip() if raw_fi is not None else ""
+    body = strip_comments("\n".join(lines)).split("\n")
+    # 链接扫描用「屏蔽围栏」的副本：代码块里的 `- [深读-<短名>.md](./深读-<短名>.md)` 是格式示例
+    # （占位符永远是死链），不是真链接；行内代码里的 `[x](y)` 由 INLINE_CODE_RE 另行剔除。
+    # 屏蔽保留行数，故报错行号仍与原文对齐。
+    link_lines = mask_fences("\n".join(body)).split("\n")
+    headings = heading_map(body)
+    h1_idx = [i for i, ln in enumerate(body) if H1_RE.match(ln)]
+    fi = first_nonempty(body)
+
+    # E-NOTE-MARKER（判定在剔除注释之前的原文行上做）
+    executed += 1
+    if marker_line != NOTE_MARKER:
+        problems.append(
+            ("E-NOTE-MARKER",
+             f"首个非空行必须逐字等于 {NOTE_MARKER}（单篇索引的唯一识别标记），"
+             f"实际：{marker_line or '（文件为空）'}")
+        )
+
+    # E-NOTE-H1（标记行已被剔除为空行，故首个非空行即"标记行之后的 H1"）
+    executed += 1
+    head_text = body[fi].strip() if fi is not None else ""
+    if (fi is None or not H1_RE.match(body[fi]) or len(h1_idx) != 1
+            or h1_idx[0] != fi or not NOTE_H1_RE.match(head_text)):
+        problems.append(
+            ("E-NOTE-H1",
+             f"标记行之后的首个非空行必须是唯一的 H1「# <短名> 论文笔记索引」，实际：{head_text or '（无）'}")
+        )
+
+    # E-NOTE-META：第一个 ## 之前的正文里要有「论文：」与「一句话结论：」两段
+    first_h2 = next((i for i, lvl, _ in headings if lvl == 2), None)
+    region_end = first_h2 if first_h2 is not None else len(body)
+    region_start = (fi + 1) if fi is not None else 0
+    meta: dict[str, tuple[int, str]] = {}
+    for para_i, para_text in note_paragraphs(body, region_start, region_end):
+        for pre in NOTE_META_PREFIXES:
+            if pre not in meta and para_text.startswith(pre):
+                meta[pre] = (para_i, para_text)
+    executed += 1
+    for pre in NOTE_META_PREFIXES:
+        if pre not in meta:
+            problems.append(
+                ("E-NOTE-META", f"第一个 ## 之前的正文缺少以「{pre}」开头的段落")
+            )
+
+    # W-NOTE-CONCL：一句话结论正文 ≥80 字（中文字符数 + 英文单词数）；缺段时由 E-NOTE-META 负责，不再叠报
+    executed += 1
+    concl = meta.get(NOTE_CONCL_PREFIX)
+    if concl is not None:
+        concl_body = concl[1][len(NOTE_CONCL_PREFIX):]
+        n_chars = cjk_count(concl_body) + len(EN_WORD_RE.findall(concl_body))
+        if n_chars < NOTE_CONCL_MIN:
+            problems.append(
+                ("W-NOTE-CONCL",
+                 f"第 {concl[0] + 1} 行「一句话结论：」正文只有 {n_chars} 字"
+                 f"（中文字符数 + 英文单词数），少于 {NOTE_CONCL_MIN} 字："
+                 "要写清「改了什么 + 换来什么 + 代价/前提」")
+            )
+
+    # E-NOTE-SEC：## 文件 与 ## 证据强度提示（顺序不限）
+    executed += 1
+    spans: dict[str, tuple[int, int]] = {}
+    for kw in NOTE_SECTIONS:
+        sp = section_span(body, headings, kw)
+        if sp is not None:
+            spans[kw] = sp
+    for kw in NOTE_SECTIONS:
+        if kw not in spans:
+            problems.append(("E-NOTE-SEC", f"缺少必备小节：## {kw}"))
+
+    # E-NOTE-EVID：## 证据强度提示 内至少一条「- 」列表项（小节缺失时由 E-NOTE-SEC 负责，不叠报）
+    executed += 1
+    span_evid = spans.get("证据强度提示")
+    if span_evid is not None:
+        evid_items = [i for i in range(span_evid[0] + 1, span_evid[1]) if LIST_RE.match(body[i])]
+        if not evid_items:
+            problems.append(
+                ("E-NOTE-EVID",
+                 "「## 证据强度提示」内至少要有 1 条「- 」列表项"
+                 "（高置信 / 低置信 / 未核实 / 已标冲突）")
+            )
+
+    # ---- 全文行内链接扫描（E-NOTE-LINK 的对象，也是「## 文件」登记判定的输入）
+    all_links: list[tuple[int, str]] = []
+    for i, ln in enumerate(link_lines):
+        if not ln.strip():
+            continue
+        for m in NOTE_LINK_RE.finditer(INLINE_CODE_RE.sub("", ln)):  # 行内代码里的 [x](y) 不算链接
+            all_links.append((i, m.group(1)))
+
+    # E-NOTE-LINK：非外链/邮件/纯锚点的目标，按 README 所在目录解析，不存在就逐条报
+    executed += 1
+    for i, target in all_links:
+        tgt = note_link_target(note_dir, target)
+        if tgt is None:
+            continue
+        if not tgt.exists():
+            problems.append(
+                ("E-NOTE-LINK",
+                 f"第 {i + 1} 行链接的目标文件不存在：{target}（相对 {path.name} 所在目录解析）")
+            )
+
+    # ---- 「## 文件」小节内的登记链接（COVER / KIND / W-SRC 共用）
+    file_links: list[tuple[int, str]] = []
+    span_files = spans.get("文件")
+    if span_files is not None:
+        for i in range(span_files[0] + 1, span_files[1]):
+            for m in NOTE_LINK_RE.finditer(INLINE_CODE_RE.sub("", link_lines[i])):
+                file_links.append((i, m.group(1)))
+
+    registered: set[Path] = set()
+    for _i, target in file_links:
+        tgt = note_link_target(note_dir, target)
+        if tgt is None:
+            continue
+        try:
+            registered.add(tgt.resolve())
+        except OSError:
+            pass
+
+    # E-NOTE-COVER：同目录一层里前缀属于白名单的 .md 必须逐件登记（小节缺失时由 E-NOTE-SEC 负责，不叠报）
+    executed += 1
+    if span_files is not None and note_dir.is_dir():
+        for f in sorted(note_dir.iterdir(), key=lambda q: q.name):
+            if not (f.is_file() and NOTE_DELIVERABLE_RE.match(f.name)):
+                continue
+            try:
+                if f.resolve() in registered:
+                    continue
+            except OSError:
+                pass
+            problems.append(
+                ("E-NOTE-COVER",
+                 f"目录里的交付物未登记进「## 文件」：{f.name}"
+                 "（同目录一层、前缀属于 深读/表格/思维导图/导图/难点/术语/综述 的 .md 必须逐件登记）")
+            )
+
+    # E-NOTE-KIND：交付物登记条目文字里要有「（模式 X）」形态标签
+    executed += 1
+    for i, target in file_links:
+        fname = target.split("#", 1)[0].split("?", 1)[0].rsplit("/", 1)[-1]
+        if not NOTE_DELIVERABLE_RE.match(fname):
+            continue
+        if not NOTE_KIND_RE.search(body[i]):
+            problems.append(
+                ("E-NOTE-KIND",
+                 f"第 {i + 1} 行交付物登记（{fname}）缺少「（模式 X）」形态标签"
+                 "（X 为一个或多个大写字母，如（模式 A））")
+            )
+
+    # W-NOTE-SRC：同目录有非空 _source/ 却没在「## 文件」里登记任何 _source/ 链接
+    executed += 1
+    src_dir = note_dir / NOTE_SOURCE_DIR
+    if span_files is not None and src_dir.is_dir():
+        src_files = 0
+        try:
+            src_files = sum(1 for p in src_dir.rglob("*") if p.is_file())
+        except OSError:
+            src_files = 1
+        if src_files:
+            linked_src = False
+            for _i, target in file_links:
+                tgt = note_link_target(note_dir, target)
+                if tgt is None:
+                    continue
+                try:
+                    if tgt.resolve().is_relative_to(src_dir.resolve()):
+                        linked_src = True
+                        break
+                except (OSError, ValueError):
+                    continue
+            if not linked_src:
+                problems.append(
+                    ("W-NOTE-SRC",
+                     f"目录里存在 {NOTE_SOURCE_DIR}/（{src_files} 个文件），"
+                     f"但「## 文件」没有登记任何 {NOTE_SOURCE_DIR}/ 链接（导入产物成了隐形文件）")
+                )
+
+    # W-NOTE-ENTRY
+    executed += 1
+    if section_span(body, headings, NOTE_ENTRY_SECTION) is None:
+        problems.append(
+            ("W-NOTE-ENTRY",
+             f"缺少「## {NOTE_ENTRY_SECTION}」小节（正文 DOI / 代码仓库 / 附录怎么补核）")
+        )
+
+    return problems, executed
+
+
 # ---------------------------------------------------------------- 模式判定与入口
 
-def detect_mode(path: Path, lines: list[str], index_marker: bool = False) -> str:
+def detect_mode(path: Path, lines: list[str], index_marker: bool = False,
+                note_marker: bool = False) -> str:
     if index_marker:  # 合集索引标记最先判定，优先于文件名词干
         return "index"
+    # 单篇索引：文件名必须是 README.md（目录里区分不了模式 note 与模式 G），且文件里带 note-index 标记。
+    # note_marker 用宽松形态判定（见 NOTE_MARKER_RE），使"标记写错了"的文件仍落在 note 模式上并被点名
+    # E-NOTE-MARKER，而不是静默回落成 deep、报出一串无关的 E-DEEP-*。
+    if note_marker and path.name == "README.md":
+        return "note"
     name = path.name
     if "深读" in name or "精读" in name:
         return "deep"
@@ -1497,9 +1788,11 @@ def main(argv: list[str] | None = None) -> int:
     orig_lines = raw.split("\n")
     fi_raw = first_nonempty(orig_lines)
     index_marker = fi_raw is not None and orig_lines[fi_raw].strip() == INDEX_MARKER
+    # note 模式的标记同样是 HTML 注释：用宽松形态在原文上搜（详见 NOTE_MARKER_RE 的注释）
+    note_marker = NOTE_MARKER_RE.search(raw) is not None
 
     if mode == "auto":
-        mode = detect_mode(path, raw_lines, index_marker)
+        mode = detect_mode(path, raw_lines, index_marker, note_marker)
 
     if mode == "deep":
         problems, executed = check_deep(raw_lines, masked_lines)
@@ -1515,8 +1808,16 @@ def main(argv: list[str] | None = None) -> int:
         problems, executed = check_index(raw_lines, index_marker, path)
     elif mode == "terms":
         problems, executed = check_terms(raw_lines, path)
-    else:
+    elif mode == "note":
+        # 传原文行（不是 raw_lines）：标记行本身是注释，必须让 check_note 自己看得到
+        problems, executed = check_note(orig_lines, path)
+    elif mode == "review":
         problems, executed = check_review(raw_lines, refs)
+    else:
+        # 兜底分支：mode 已在上面按 MODES 校验过，正常不可达。留成显式报错而不是 `else: review`，
+        # 是因为新增模式时漏接调度会静默跑成 review 检查（返回一堆牛头不对马嘴的码）——
+        # 宁可当场报错，也不要"看起来通过了"。
+        return _fail(f"内部错误：模式 {mode} 没有对应的检查实现")
 
     errors = [(c, m) for c, m in problems if c.startswith("E")]
     warns = [(c, m) for c, m in problems if c.startswith("W")]

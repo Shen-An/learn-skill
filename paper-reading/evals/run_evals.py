@@ -35,6 +35,13 @@ references/self-iteration.md 规定：任何对 SKILL.md 规则、check_paper_no
      与显式 `--mode terms` 输出逐字一致；good fixture 同时用 `[原文 p.7]` 与 `[原文 p.7-8]`
      守住"模板说合法、校验器就必须认"的带页码出处口径；最后做"每个术语表 fixture 都在
      断言表内"的完整性自检
+  9) 单篇索引 note-cases：check_paper_note.py 的 `--mode note`（11 个 CODE）逐项断言——
+     每个 fixture 是一个**目录**（README.md + 它登记的产出文件）；good/README.md 必须 0 ERROR
+     0 WARN 且打印 `[PASS ] 11 项检查全部通过`；8 个 bad fixture 各只触发一个设计好的 E-NOTE-* 码；
+     3 个 warn fixture 各只触发一个设计好的 W-NOTE-* 码；`--mode auto` 对每个 README.md 与显式
+     `--mode note` 输出**逐字一致**（含退出码）；漏登记产出 / 死链 / 缺「（模式 X）」标签 /
+     `_source/` 未登记四条既有正向也有反向用例（证明这些码不是恒真）；名为 README.md 但没有
+     标记行时 auto 回落 deep；最后做"每个 README.md fixture 都在断言表内"的完整性自检
 退出码: 全部断言通过 → 0；任一失败 → 1
 """
 from __future__ import annotations
@@ -221,8 +228,7 @@ BAD_CASES: list[tuple[str, str, int | None, list[tuple[str, str]]]] = [
         ("E-FAQ-FIELD", "小节「二、双重增强里为什么能保证标签不变」缺少 **解答**：字段"),
     ]),
     ("难点-解答无来源标记.md", "faq", None, [
-        ("E-FAQ-CITE", "小节「二、双重增强里为什么能保证标签不变」的 **解答** 段落没有任何来源标记"
-                       "（[原文]/[代码]/[摘要]/[二手]/[OCR]/[推断]/[数字]）"),
+        ("E-FAQ-CITE", "小节「二、双重增强里为什么能保证标签不变」的 **解答** 段落没有任何来源标记"),
     ]),
     ("难点-小节重名.md", "faq", None, [
         ("E-FAQ-DUP", "## 小节标题重复：一、为什么黑盒迁移攻击里扰动会过拟合源模型"),
@@ -428,7 +434,11 @@ def read_md(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
 
 
-PDF_WORK = Path(tempfile.mkdtemp(prefix="paper-reading-pdf-evals-"))
+# 临时目录建在仓库内（evals/_work_pdf_evals）：DSH 的 workspace-write 沙箱下系统 TEMP 不可写，
+# 而本用例是 PDF 通道唯一的机械信号，不能因为环境收紧就整批跑不动（见 ledger 第 12 条③）。
+PDF_WORK = HERE / "_work_pdf_evals"
+shutil.rmtree(PDF_WORK, ignore_errors=True)
+PDF_WORK.mkdir(parents=True, exist_ok=True)
 PDF_SRC_HASHES = {name: sha256_of(PDF_CASES / name) for name in PDF_FIXTURES if (PDF_CASES / name).is_file()}
 
 expect("pdf-cases fixture 齐全（4 个 PDF + make_fixtures.py）",
@@ -887,10 +897,216 @@ expect("用例7 模板 references/terms-template.md 仍把 [原文 p.7] / [原�
 expect("用例7 带页码出处过校验：good fixture 0 ERROR 且不含 E-TERM-CITE",
        code_good == 0 and "E-TERM-CITE" not in out_good, out_good)
 
+# ---- 用例 8：出处标记口径（--mode faq，兼查模板与校验器是否说同一套话） -------
+# 背景（ledger 第 12 条①）：faq-template.md 曾把 [原文 p.N] 明列为合法来源标记，而 FAQ_CITE_RE
+# 只认裸标签与 [数字]，真实文件按模板写反而被误报 E-FAQ-CITE。同一次排查还发现 [实验] 这类
+# 定位标签被 6 个 fixture 大量使用、却从未入册（文档、样本、校验器三方各说各话）。
+# 本用例把三者钉在同一套词汇上：裸标签 / 带页码 / 定位标签 [实验] / 数字引用 [19] 全部合法，
+# 表外的标记（如 [不明来源]）必须拦下。
+FAQ_CASES = HERE / "faq-cases"
+FAQ_GOOD_REL = "难点-页码锚点.md"
+FAQ_BAD_REL = "难点-非法标记.md"
+
+case8_start = assertions
+
+
+def run_faq(rel: str, mode: str = "faq") -> tuple[int, str]:
+    return run_check(FAQ_CASES / rel, mode)
+
+
+def faq_codes(out: str, level: str) -> list[str]:
+    """取出输出里 level（E / W）级的 FAQ 码并去重排序。"""
+    return sorted(set(re.findall(r"\[(?:ERROR|WARN )\] (" + level + r"-FAQ-[A-Z0-9-]+)", out)))
+
+
+expect("faq-cases/ 两个 fixture 齐全",
+       all((FAQ_CASES / n).is_file() for n in (FAQ_GOOD_REL, FAQ_BAD_REL)),
+       f"实际 {sorted(p.name for p in FAQ_CASES.iterdir()) if FAQ_CASES.is_dir() else '目录不存在'}")
+
+# --- 契约内写法（带页码 / [实验] 定位标签 / [19] 数字引用）必须放行 ---
+code_fg, out_fg = run_faq(FAQ_GOOD_REL)
+expect("用例8 只用契约内出处写法（一个裸标签都不写）也能过：退出码 0",
+       code_fg == 0, f"实际 {code_fg}\n{out_fg}")
+expect("用例8 带页码 [原文 p.N] 与 [实验 p.N] 都不报 E-FAQ-CITE", "E-FAQ-CITE" not in out_fg, out_fg)
+expect(f"用例8 契约内写法 0 ERROR（实际 {','.join(faq_codes(out_fg, 'E')) or '无'}）",
+       not faq_codes(out_fg, "E"), out_fg)
+expect(f"用例8 契约内写法 0 WARN（实际 {','.join(faq_codes(out_fg, 'W')) or '无'}）"
+       f"——结构完整，能过不是因为检查项被削弱", not faq_codes(out_fg, "W"), out_fg)
+
+# --- 契约外标记必须拦下（否则本用例只是恒真） ---
+code_bf, out_bf = run_faq(FAQ_BAD_REL)
+expect("用例8 契约外标记 [不明来源] 退出码为 1", code_bf == 1, f"实际 {code_bf}\n{out_bf}")
+expect(f"用例8 契约外标记只报 E-FAQ-CITE（实际 {','.join(faq_codes(out_bf, 'E')) or '无'}）",
+       faq_codes(out_bf, "E") == ["E-FAQ-CITE"], out_bf)
+
+# --- --mode auto 对 难点-*.md 的判定与显式 --mode faq 逐字一致 ---
+code_fa, out_fa = run_faq(FAQ_GOOD_REL, "auto")
+expect("用例8 --mode auto 与 --mode faq 输出逐字一致",
+       (code_fa, out_fa) == (code_fg, out_fg), f"auto exit={code_fa}\n{out_fa}\nfaq exit={code_fg}")
+
+# --- 模板 / 权威文档 / 校验器三方同词（防口径再次漂移） ---
+faq_tpl_text = read_md(ROOT / "references" / "faq-template.md")
+expect("用例8 faq-template.md 仍把带页码的 [原文 p.6] 写成合法出处",
+       "[原文 p.6]" in faq_tpl_text, faq_tpl_text[:200])
+expect("用例8 faq-template.md 已写明定位标签 [实验] 合法",
+       "[实验]" in faq_tpl_text, faq_tpl_text[:200])
+grounding_text = read_md(ROOT / "references" / "grounding-rules.md")
+expect("用例8 grounding-rules.md 的标记表含 [原文 p.N] 与 [实验] 两行",
+       "[原文 p.N]" in grounding_text and "[实验]" in grounding_text, grounding_text[:200])
+expect("用例8 grounding-rules.md 不再自称五级标记（OCR 曾漏登记）",
+       "五级标记" not in grounding_text, grounding_text[:200])
+
+# ---- 用例 9：单篇索引 paper-notes/<短名>/README.md（--mode note） -------------
+# 契约写在 check_paper_note.py 的 check_note() 与 references/note-index-template.md：
+# 11 个检查码（8 个 E-NOTE-* + 3 个 W-NOTE-*）。由来见 feedback/ledger.jsonl 第 12 条②：
+# MFAA 的单篇索引曾漏登记两件早已交付的产出（导图、难点），补第三件（术语）时又差点漏。
+# 与 terms-cases 的差别：**每个 fixture 是一个目录**（README.md + 它登记的产出文件），因为
+# E-NOTE-LINK / E-NOTE-COVER / W-NOTE-SRC 都要落到真实文件上；目录里的产出文件本身不是 fixture
+# （只有 README.md 是），故完整性自检只扫 README.md。
+NOTE_CASES = HERE / "note-cases"
+NOTE_DIRS = ("good", "warn", "bad")
+NOTE_GOOD_REL = "good/README.md"
+NOTE_DELIVERABLE_NAME_RE = re.compile(r"^(深读|表格|思维导图|导图|难点|术语|综述)-.+\.md$")
+# (相对 note-cases 的路径, 设计要触发的 ERROR 码, 关键消息片段)
+NOTE_BAD_CASES: list[tuple[str, str, str]] = [
+    # 标记写错（冒号后少个空格）：--mode auto 仍认得出这是单篇索引，于是点名报 E-NOTE-MARKER，
+    # 而不是静默回落成 deep、对一份本来合规的索引报出一串无关的 E-DEEP-*
+    ("bad/标记行不规范/README.md", "E-NOTE-MARKER",
+     "首个非空行必须逐字等于 <!-- paper-reading: note-index -->（单篇索引的唯一识别标记），"
+     "实际：<!-- paper-reading:note-index -->"),
+    ("bad/标题不合规/README.md", "E-NOTE-H1",
+     "标记行之后的首个非空行必须是唯一的 H1「# <短名> 论文笔记索引」，"
+     "实际：# Attention Is All You Need（Transformer）"),
+    ("bad/缺元信息/README.md", "E-NOTE-META", "第一个 ## 之前的正文缺少以「论文：」开头的段落"),
+    ("bad/缺证据小节/README.md", "E-NOTE-SEC", "缺少必备小节：## 证据强度提示"),
+    ("bad/证据无条目/README.md", "E-NOTE-EVID", "「## 证据强度提示」内至少要有 1 条「- 」列表项"),
+    ("bad/链接不可达/README.md", "E-NOTE-LINK",
+     "第 12 行链接的目标文件不存在：./导图-ResNet.md（相对 README.md 所在目录解析）"),
+    ("bad/漏登记产出/README.md", "E-NOTE-COVER", "目录里的交付物未登记进「## 文件」：导图-SAM.md"),
+    ("bad/缺模式标/README.md", "E-NOTE-KIND",
+     "第 12 行交付物登记（导图-ViT.md）缺少「（模式 X）」形态标签"),
+]
+# (相对 note-cases 的路径, 设计要触发的 WARN 码, 关键消息片段)
+NOTE_WARN_CASES: list[tuple[str, str, str]] = [
+    ("warn/结论过短/README.md", "W-NOTE-CONCL",
+     "第 7 行「一句话结论：」正文只有 41 字（中文字符数 + 英文单词数），少于 80 字"),
+    ("warn/缺待核入口/README.md", "W-NOTE-ENTRY", "缺少「## 待核入口」小节"),
+    ("warn/未登记出处/README.md", "W-NOTE-SRC", "但「## 文件」没有登记任何 _source/ 链接"),
+]
+
+case9_start = assertions
+
+
+def run_note(rel: str, mode: str = "note") -> tuple[int, str]:
+    return run_check(NOTE_CASES / rel, mode)
+
+
+def note_codes(out: str, level: str) -> list[str]:
+    """取出输出里 level（E / W）级的 NOTE 码并去重排序。"""
+    return sorted(set(re.findall(r"\[(?:ERROR|WARN )\] (" + level + r"-NOTE-[A-Z0-9-]+)", out)))
+
+
+expect("note-cases/ 三个子目录齐全（good/warn/bad）",
+       all((NOTE_CASES / d).is_dir() for d in NOTE_DIRS),
+       f"实际 {sorted(p.name for p in NOTE_CASES.iterdir()) if NOTE_CASES.is_dir() else '目录不存在'}")
+
+note_present = sorted(p.relative_to(NOTE_CASES).as_posix() for p in NOTE_CASES.rglob("README.md"))
+note_covered = ({NOTE_GOOD_REL}
+                | {rel for rel, _, _ in NOTE_BAD_CASES}
+                | {rel for rel, _, _ in NOTE_WARN_CASES})
+expect("note-cases 每个 README.md fixture 都在断言表内",
+       bool(note_present) and set(note_present) <= note_covered,
+       f"未覆盖: {sorted(set(note_present) - note_covered)}")
+expect("note-cases 恰好 12 个 fixture（1 正 + 3 只触发 WARN + 8 各触发一个 ERROR）",
+       len(note_present) == 12 and len(NOTE_BAD_CASES) == 8 and len(NOTE_WARN_CASES) == 3,
+       f"实际 {len(note_present)} 个: {note_present}")
+note_all_md = sorted(p.relative_to(NOTE_CASES).as_posix() for p in NOTE_CASES.rglob("*.md"))
+expect("note-cases 的产出文件不被算成 fixture（fixture 只有 README.md，.md 总数更多）",
+       len(note_all_md) > len(note_present), f"全部 .md: {note_all_md}")
+
+# --- good：0 ERROR 0 WARN（11 项检查全过） ---
+code_good, out_good = run_note(NOTE_GOOD_REL)
+expect("用例9 good/README.md --mode note 退出码为 0", code_good == 0, f"实际 {code_good}\n{out_good}")
+expect("用例9 good/README.md 11 项检查全过（check_note 的 executed 计数没被静默减项）",
+       "[PASS ] 11 项检查全部通过" in out_good, out_good)
+expect("用例9 good/README.md 无 ERROR 行", "[ERROR]" not in out_good, out_good)
+expect("用例9 good/README.md 无 WARN 行", "[WARN ]" not in out_good, out_good)
+expect(f"用例9 good/README.md 未命任何 E-NOTE-* 码（实际 {note_codes(out_good, 'E')}）",
+       note_codes(out_good, "E") == [], out_good)
+expect(f"用例9 good/README.md 未命任何 W-NOTE-* 码（实际 {note_codes(out_good, 'W')}）",
+       note_codes(out_good, "W") == [], out_good)
+
+good_note_dir = NOTE_CASES / "good"
+good_note_text = read_md(NOTE_CASES / NOTE_GOOD_REL)
+good_deliverables = sorted(p.name for p in good_note_dir.iterdir()
+                           if NOTE_DELIVERABLE_NAME_RE.match(p.name))
+expect("用例9 good fixture 真的登记了 3-5 件真实产出的交付物文件（链接校验不是空转）",
+       3 <= len(good_deliverables) <= 5, f"实际 {good_deliverables}")
+expect("用例9 good fixture 里有白名单外的 .md（未登记也不报 E-NOTE-COVER，证明只认白名单前缀）",
+       (good_note_dir / "笔记补充说明.md").is_file(),
+       f"{sorted(p.name for p in good_note_dir.iterdir())}")
+expect("用例9 good fixture 的登记同时用到无后缀「（模式 A）」与带后缀「（模式 E，…）」两种形态",
+       "（模式 A）" in good_note_text and "（模式 E，" in good_note_text, good_note_text[:400])
+expect("用例9 good fixture 的 _source/ 非空且已被登记进「## 文件」（W-NOTE-SRC 不是恒真）",
+       any(p.is_file() for p in (good_note_dir / "_source").rglob("*"))
+       and "[_source/" in good_note_text,
+       f"{sorted(p.name for p in (good_note_dir / '_source').iterdir())}")
+
+# --- bad：退出码 1，且只报它设计的那一个 ERROR 码 ---
+for rel, want_code, frag in NOTE_BAD_CASES:
+    code, out = run_note(rel)
+    tag = f"note-cases/{rel} --mode note"
+    expect(f"{tag} 退出码为 1", code == 1, f"实际 {code}\n{out}")
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[ERROR] {want_code} " in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = note_codes(out, "E")
+    expect(f"{tag} 命中的 ERROR 码集合恰为 [{want_code}]（实际 {got}）", got == [want_code], out)
+
+# --- warn：退出码 0、无 ERROR，且只报它设计的那一个 WARN 码 ---
+for rel, want_code, frag in NOTE_WARN_CASES:
+    code, out = run_note(rel)
+    tag = f"note-cases/{rel} --mode note"
+    expect(f"{tag} 退出码为 0（WARN 不改退出码）", code == 0, f"实际 {code}\n{out}")
+    expect(f"{tag} 未命任何 E- 码（实际 {note_codes(out, 'E')}）", note_codes(out, "E") == [], out)
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[WARN ] {want_code}" in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = note_codes(out, "W")
+    expect(f"{tag} 命中的 WARN 码集合恰为 [{want_code}]（实际 {got}）", got == [want_code], out)
+
+# --- --mode auto 的判定：带标记的 README.md → note（与显式 --mode note 逐字一致，含退出码） ---
+for rel in note_present:
+    code_auto, out_auto = run_check(NOTE_CASES / rel, "auto")
+    code_note, out_note = run_check(NOTE_CASES / rel, "note")
+    expect(f"用例9 --mode auto 对 {rel} 判为 note（退出码与输出与 --mode note 逐字一致）",
+           code_auto == code_note and out_auto == out_note,
+           f"auto {code_auto}:\n{out_auto}\n--- note {code_note}:\n{out_note}")
+
+# --- E-NOTE-COVER 的反向完整性：登记齐了不报，漏一件才报，且点名漏的那一件 ---
+expect("用例9 good/README.md 六件产出全登记时 0 ERROR（E-NOTE-COVER 不是恒真）",
+       code_good == 0 and "E-NOTE-COVER" not in out_good, out_good)
+code_cov, out_cov = run_note("bad/漏登记产出/README.md")
+expect("用例9 目录里有未登记的 导图-SAM.md 时报 E-NOTE-COVER 并点名它",
+       code_cov == 1 and "目录里的交付物未登记进「## 文件」：导图-SAM.md" in out_cov, out_cov)
+expect("用例9 已登记的 深读-SAM.md / 表格-SAM.md 不被报成未登记",
+       "深读-SAM.md（" not in out_cov and "表格-SAM.md（" not in out_cov, out_cov)
+
+# --- 名为 README.md 但没有标记行 → 不被 auto 判为 note（回落 deep，报 E-DEEP-* 而不是 E-NOTE-*） ---
+fallback_dir = Path(tempfile.mkdtemp(prefix="note_fallback_"))
+try:
+    fallback_readme = fallback_dir / "README.md"
+    fallback_readme.write_text("# 某论文的精读讲解\n\n背景：这是一段没有任何小节标题的正文。\n",
+                               encoding="utf-8")
+    code_fb, out_fb = run_check(fallback_readme, "auto")
+    expect("用例9 名为 README.md 但无标记行时 auto 回落 deep（报 E-DEEP-*、不报任何 E-NOTE-*）",
+           "E-DEEP-SEC" in out_fb and "E-NOTE-" not in out_fb, f"实际 {code_fb}\n{out_fb}")
+finally:
+    shutil.rmtree(fallback_dir, ignore_errors=True)
+
 # ---- 汇总 ------------------------------------------------------------------
 print(f"\n[INFO ] 断言总数: {assertions}（用例 1-4：{case5_start}，"
       f"用例 5 PDF 抽取器：{case6_start - case5_start}，用例 6 合集索引：{case7_start - case6_start}，"
-      f"用例 7 专业术语表：{assertions - case7_start}）")
+      f"用例 7 专业术语表：{case8_start - case7_start}，用例 8 出处标记口径：{case9_start - case8_start}，"
+      f"用例 9 单篇索引：{assertions - case9_start}）")
 if failures:
     print(f"\n[FAIL ] {len(failures)} 条断言未过：")
     for f_ in failures:

@@ -49,7 +49,9 @@ learning-<主题>/
 
 **默认交付集（v1.6.0 起）**：说"读论文 / 讲论文 / 总结 / 精读"，或只丢来 PDF/链接而没点名模式时，默认**成套产出 A + B + C + E + F + H**（G 照旧必做）——六件全部落盘、各自独立成文件，正文只展开你点名的那个模式，其余静默落盘并在交付开头列出"文件清单 + 每件一句话"与省略原因。点名单个模式（"只讲一下""填这个表""要能渲染的导图""出个术语表"）时就只出那一件；`D` 只在一次给多篇且要求"对比/综述/趋势"时产出，**不进默认集**。
 
-输入支持 **PDF**（工作区路径或上传件，转成带页锚点的 `_source/` 文本，引用可标到页如 `[原文 p.12]`）、DOI/arXiv、官方摘要、他人总结、官方代码仓库。它的核心机制是**证据分层**：每条断言都要归到 `[原文]` / `[代码]` / `[摘要]` / `[二手]` / `[推断]`，二手数字必须与原文并列或标"待核对"，两个来源冲突时**两个都写、不许调和**。此外强制"读者假设"：有领域通用基础、无本小方向基础，术语首现必须给出大白话解释与相邻概念的分界。导图另出 Mermaid 形态，**并如实说明渲染能力**：Obsidian / GitHub 能出图，DSH Web GUI 只做语法高亮、不出图（要出图就打开 `导图-<短名>.md`）。
+> 上表八种是**产出种类**。此外每篇论文目录里还有一个**单篇索引** `README.md`（模式 `note`）：它不是第九种产出，而是把已交付的文件登记成入口页（论文身份 + 一句话结论 + 全量文件登记 + 证据强度提示 + 待核入口），同样可机械校验——`--mode note` 共 11 项，专拦**漏登记**、死链、缺 `（模式 X）` 标签。真实踩过：某篇笔记的索引漏登记了两个早已交付的产出，索引不全比没有索引更误导人。
+
+输入支持 **PDF**（工作区路径或上传件，转成带页锚点的 `_source/` 文本，引用可标到页如 `[原文 p.12]`）、DOI/arXiv、官方摘要、他人总结、官方代码仓库。它的核心机制是**证据分层**：每条断言都要归到 `[原文 p.12]` / `[代码]` / `[摘要]` / `[二手]` / `[OCR]` / `[推断]`（另有实验章节定位标签 `[实验]` 与数字引用 `[19]`），二手数字必须与原文并列或标"待核对"，两个来源冲突时**两个都写、不许调和**。此外强制"读者假设"：有领域通用基础、无本小方向基础，术语首现必须给出大白话解释与相邻概念的分界。导图另出 Mermaid 形态，**并如实说明渲染能力**：Obsidian / GitHub 能出图，DSH Web GUI 只做语法高亮、不出图（要出图就打开 `导图-<短名>.md`）。
 
 笔记多起来之后，`paper-notes/README.md` 作为**合集层**回答另一个问题："我读过哪些论文、它们彼此在哪里冲突、我的证据只到哪一层"。它按主题分组登记（条目 = 链接 + 一句话结论 + 证据类型/有无代码）、给术语速查、跨论文对比、未解决问题与证据强度总览，**只追加、不重排**，冲突数字在对比表里同样并列——像 wiki 一样长期维护，而不是一次性的目录清单。
 
@@ -59,17 +61,20 @@ learning-<主题>/
 paper-notes/
 ├── README.md               # 库索引（合集层）：主题清单 + 术语速查 + 跨论文对比 + 未解决问题 + 证据强度总览
 └── <论文短名>/
-    ├── README.md           # 单篇索引 + 一句话结论 + 证据强度提示
+    ├── README.md           # 单篇索引（模式 note）：论文身份 + 一句话结论 + 全量文件登记 + 证据强度提示 + 待核入口
     ├── _source/<论文名>.md  # PDF 导入产物，含 <!-- page:N --> 页锚点
     ├── 深读-<短名>.md       # 背景与动机 → 符号表 → 方法 → 实验 → 贡献 → 局限 → 证据与出处
     ├── 表格-<短名>.md
     ├── 思维导图-<短名>.md   # 四分支大纲（主形态，跨 harness 可读）
     ├── 导图-<短名>.md       # 同一导图的 Mermaid 可渲染形态
     ├── 难点-<短名>.md       # 难点与解答，每条带来源标记
+    ├── 术语-<短名>.md       # 中英对照全量术语表（英文原词必须保留）
     └── 综述-<主题>.md       # 多篇时
 ```
 
-参考实例：`paper-notes/MFAA/`（对一篇 TIFS 2025 对抗攻击论文的真实产出，五件套同时作为 `paper-reading/sample/` 的回归正样本），以及 `paper-notes/README.md`（同一篇论文的库索引，可直接 `python paper-reading/scripts/check_paper_note.py paper-notes/README.md --mode index` 校验）。
+两个索引层都可机械校验：单篇索引 `python paper-reading/scripts/check_paper_note.py "paper-notes/<短名>/README.md" --mode note`（首行标记 `<!-- paper-reading: note-index -->`，`--mode auto` 也能自动认出），合集层 `--mode index`（首行标记 `<!-- paper-reading: collection-index -->`）。
+
+参考实例：`paper-notes/MFAA/`（对一篇 TIFS 2025 对抗攻击论文的真实产出，其中五件同时作为 `paper-reading/sample/` 的回归正样本），以及 `paper-notes/README.md`（同一篇论文的库索引，可直接 `python paper-reading/scripts/check_paper_note.py paper-notes/README.md --mode index` 校验）。
 
 ## 安装
 
@@ -283,16 +288,18 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
     ├── SKILL.md                # 主指令：八种产出（含笔记库索引与中英术语表）+ 证据分层纪律 + 可渲染优先 + Step 1–7
     ├── CHANGELOG.md
     ├── scripts/
-    │   ├── check_paper_note.py # 机械校验：结构/公式定界符与独占行/表格/引用范围/模式混装/导图渲染/难点字段/库索引结构/术语表结构，八模式各一套
+    │   ├── check_paper_note.py # 机械校验：结构/公式定界符与独占行/表格/引用范围/模式混装/导图渲染/难点字段/单篇索引/库索引结构/术语表结构，九模式各一套
     │   └── pdf_extract.py      # PDF 导入：逐页提取 + `<!-- page:N -->` 页锚点 + 扫描页标记
     ├── evals/
-    │   ├── run_evals.py        # 回归门禁：good/warn/bad 样本 + sample/ 真实产出 + PDF 抽取器契约 + 论文库索引
-    │   ├── good-sample/        # 正样本 fixture（六种单篇模式各一；库索引正样本在 index-cases/，术语表正样本在 terms-cases/）
+    │   ├── run_evals.py        # 回归门禁：good/warn/bad 样本 + sample/ 真实产出 + PDF 抽取器契约 + 合集索引 + 术语表 + 出处标记口径 + 单篇索引
+    │   ├── good-sample/        # 正样本 fixture（六种单篇模式各一；库索引正样本在 index-cases/，术语表在 terms-cases/，单篇索引在 note-cases/）
     │   ├── warn-sample/        # WARN 类 fixture（应退出 0 但命中指定 WARN）
     │   ├── bad-sample/         # 负样本 fixture（故意违规，勿修）
     │   ├── pdf-cases/          # PDF 抽取器 fixture（3 页样例 / 空白页 / 加密 / 假 PDF）+ make_fixtures.py
-    │   └── index-cases/        # 笔记库索引 fixture（正/警/负样本 + 漏登记反向检查）
-    │   └── terms-cases/        # 专业术语表 fixture（正/警/负样本：英文列缺英文、出处非法、重复登记等）
+    │   ├── index-cases/        # 笔记库索引 fixture（正/警/负样本 + 漏登记反向检查）
+    │   ├── terms-cases/        # 专业术语表 fixture（正/警/负样本：英文列缺英文、出处非法、重复登记等）
+    │   ├── faq-cases/          # 出处标记口径 fixture（带页码 [原文 p.N] / 定位标签 [实验] 必须放行，契约外标记必须拦）
+    │   └── note-cases/         # 单篇索引 fixture（正/警/负样本：漏登记、死链、缺模式标签等）
     ├── feedback/
     │   └── ledger.example.jsonl
     ├── sample/                 # 真实产出（MFAA 论文笔记五件套）= 端到端正样本
@@ -304,9 +311,10 @@ python paper-reading/scripts/pdf_extract.py paper-reading/evals/pdf-cases/三页
         ├── review-template.md     # 模式 D：汇总综述骨架 + [num] 规则
         ├── index-template.md      # 模式 G：笔记库索引骨架 + 条目形状 + 增量续写规则 + 10 个检查码
         ├── terms-template.md      # 模式 H：中英对照全量术语表骨架（六节 + 六列 + 全量扫描法 + 11 个检查码）
+        ├── note-index-template.md # 模式 note：单篇索引骨架（标记行 + 全量文件登记 + 证据强度四类 + 待核入口 + 11 个检查码）
         ├── formula-style.md       # 公式：Markdown 数学定界符 / 记法约定 / 渲染自检
         ├── input-intake.md        # 输入接入：PDF/摘要/DOI/二手 的可讲深度与页锚点规范
-        ├── grounding-rules.md     # 证据五级标记 / 冲突处理 / 可讲深度判定
+        ├── grounding-rules.md     # 出处标记表（六类来源 + [实验] 定位标签 + 数字引用）/ 冲突处理 / 可讲深度判定
         ├── quality-rubric.md      # 人工质检清单（忠实性、论证链、讲解密度、可渲染性）
         └── self-iteration.md      # RSI 协议
 ```
@@ -330,8 +338,8 @@ skill 的规则不能"想到就改"：一次随手的措辞变更可能把一条
 
 | 字段 | 取值 |
 |------|------|
-| `source` | `check_paper_note`（校验器报的 ERROR，或被判定"本应在生成时避免"的 WARN）、`rubric`（人工过质检清单导致的返工）、`user_rework`（用户要求返工、修正或表达不满） |
-| `mode` | `deep` / `table` / `mindmap` / `mmd` / `faq` / `review`；PDF 导入与抽取器相关记 `pdf`（与 `check_paper_note.py --mode` 取值一致，勿造新词） |
+| `source` | `check_paper_note`（校验器报的 ERROR，或被判定"本应在生成时避免"的 WARN）、`rubric`（人工过质检清单导致的返工）、`user_rework`（用户要求返工、修正或表达不满）、`harness`（运行环境类信号：沙箱/权限限制、工具能力缺口、代理执行失败、门禁跑不起来） |
+| `mode` | `deep` / `table` / `mindmap` / `mmd` / `faq` / `review` / `index` / `note` / `terms` / `skill`；PDF 导入与抽取器相关记 `pdf`（除 `skill` 外与 `check_paper_note.py --mode` 取值一致，勿造新词）。`skill` = 改动横跨多个模式或不落在单一产出上（改枚举、改协议、改模板骨架、改工作流步骤） |
 | `action` | `fix_output`（只修本次产出）或 `rule_change`（要改 skill 本身） |
 
 **触发条件**（满足其一才进入迭代）：① 用户明确要求"复盘 / 迭代这个 skill"；② 自上次版本 bump 以来 ledger 新增 ≥ 5 条；③ 出现违反"宪法区"的记录（证据分层、冲突数字必须并列、不编造、局限单列、无寒暄）→ 立即触发，不等攒数。

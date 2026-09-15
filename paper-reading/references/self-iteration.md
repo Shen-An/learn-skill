@@ -12,7 +12,11 @@
   1. `check_paper_note.py` 报出 ERROR，或 WARN 被人工判定为"本应在生成时避免"
   2. 人工过 `quality-rubric.md` 时任何一条不过导致返工
   3. 用户要求返工、修正或表达不满（含"太浅了""数字不对""没有讲清 XX"）
-- `source` 取 `check_paper_note` / `rubric` / `user_rework`；`action` 取 `fix_output`（修本次产出）或 `rule_change`（改 skill）；`mode` 取 `deep` / `table` / `mindmap` / `mmd` / `faq` / `review` / `index` / `terms`，PDF 导入或抽取器相关的改动记 `pdf`（与 `check_paper_note.py --mode` 的取值一致，勿再造新词）
+- `source` 取 `check_paper_note` / `rubric` / `user_rework` / `harness`；`action` 取 `fix_output`（修本次产出）或 `rule_change`（改 skill）；`mode` 取 `deep` / `table` / `mindmap` / `mmd` / `faq` / `review` / `index` / `note` / `terms` / `skill`，PDF 导入或抽取器相关的改动记 `pdf`（除 `skill` 外与 `check_paper_note.py --mode` 的取值一致，勿再造新词）
+- 三个易混取值的判据（避免再次出现"没地方填就就近放一个"）：
+  - `source=harness`：信号来自运行环境而非产出本身（沙箱/权限限制、工具能力缺口、代理执行失败、门禁跑不起来这类），**不记**为 `rubric`；
+  - `mode=skill`：改动横跨多个模式或不落在任何单一产出上（改枚举、改协议、改模板骨架、改工作流步骤）；
+  - `mode=note`：单篇索引 `paper-notes/<短名>/README.md`（模式 note）；`mode=index` 仅指合集层 `paper-notes/README.md`（模式 G）。
 - **只追加，不修改不删除**——历史证据是迭代的地基，写错了就追加一条更正
 
 ## 触发条件（满足其一才进入迭代流程）

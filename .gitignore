@@ -5,3 +5,6 @@ __pycache__/
 # 证据账本是本地数据（含真实对话/返工记录），只公开格式示例
 learning-wiki/feedback/ledger.jsonl
 paper-reading/feedback/ledger.jsonl
+
+# pdf-cases 用例的临时目录（沙箱内跑门禁用，跑完自删；防意外残留被提交）
+paper-reading/evals/_work_pdf_evals/
