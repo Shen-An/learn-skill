@@ -2,12 +2,13 @@
 r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记做机械校验。
 
 用法:
-    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review|index] [--refs N]
+    python scripts/check_paper_note.py <markdown文件> [--mode auto|deep|table|mindmap|mmd|faq|review|index|terms] [--refs N]
 
 模式判定 --mode auto（默认，顺序敏感）:
     首行非空内容恰为 `<!-- paper-reading: collection-index -->` → index（该标记检查先于文件名词干判定）；
     含 深读/精读 → deep；含 表格/填表 → table；含 思维导图 → mindmap；
     否则含 导图/mermaid/mmd → mmd；含 难点/问答/faq（大小写不敏感）→ faq；含 综述 → review；
+    含 术语/terms（大小写不敏感）→ terms（token 与上面各项都不重叠，故不会抢走 导图/难点 等既有 token）；
     都没有时按内容启发式: 出现 `## 研究背景与目标` → mindmap；只有一张 `| 维度 | 内容 |` 表 → table；
     出现 `## 研究主题概述` → review；否则 deep。
 --refs N 仅 review 模式使用，表示可用文献编号范围 1..N；未给出时取正文出现的最大编号。
@@ -26,6 +27,9 @@ r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记�
   index:   E-IDX-MARKER / E-IDX-H1 / E-IDX-SEC / E-IDX-LINK / E-IDX-ENTRY
            E-IDX-DUP / E-IDX-SRCKIND / W-IDX-ORPHAN / W-IDX-TERM / W-IDX-UPDATE
            （共 10 项，合集层索引 paper-notes/README.md；--mode index 可对缺标记文件强制生效）
+  terms:   E-TERM-SEC / E-TERM-H1 / E-TERM-TABLE / E-TERM-EN / E-TERM-CITE
+           E-TERM-EMPTY / E-TERM-DUP / W-TERM-MIN / W-TERM-QUOTE / W-TERM-ABBR / W-TERM-SORT
+           （共 11 项，专业术语表中英对照 术语-<短名>.md）
 
 输出: 每条问题一行 `[ERROR] <CODE> <文件名>: <消息>` / `[WARN ] <CODE> <文件名>: <消息>`（WARN 的方括号内为 4 字母 + 1 空格）；
 末行汇总:
@@ -96,6 +100,33 @@ r"""check_paper_note.py — 对 paper-reading skill 产出的论文学术笔记�
     W-IDX-TERM 只看 `## 二、术语速查` 区间内的**第一张**表：表头去空白后须恰为
     `|术语|一句话解释|首次出现|`，且分隔行之外至少一行数据；无表 / 表头错 / 无数据各报 1 条。
     W-IDX-UPDATE 只要求存在一行 `>` 引用行，其中出现 `最近更新：YYYY-MM-DD`（允许行尾附加说明文字）。
+  * terms 模式的 `executed` 计数为 11（上表逐项各 1）。实现注记：
+    模式识别只靠文件名词干 `术语`（或 `--mode terms` 显式指定），**不**需要 index 那种 HTML 注释标记行；
+    该 token 判定排在 综述 之后、内容启发式之前，与 深读/表格/思维导图/导图/难点 各 token 不重叠。
+    E-TERM-H1 要求"首个非空行"就是唯一的 H1（HTML 注释已先剔除，故 fixture 的说明注释不影响判定），
+    且标题文本须形如 `# <短名> 专业术语表（中英对照）`（全角括号、短名非空）。
+    E-TERM-SEC 用小节标题**完全相等**匹配六个 `##` 小节（多出的其它 `##` 小节不报）；
+    顺序判定只在六节齐全时进行，避免级联。
+    E-TERM-TABLE 只看 `## 二、` 与 `## 三、` 区间内（`## 三、` 里允许 `### <分组名>` 分小组，每组一张表）
+    **起始行落在该区间内**的每一张表：表头去空白后必须恰为
+    `|英文术语|缩写|中文译名|一句话解释|在本文中的角色|出处|`（列数与列名都查），
+    两区间合计至少 1 张表、至少 8 行数据（数据行 = 表头与分隔行之外的 `|` 行）。
+    E-TERM-EN / E-TERM-EMPTY / E-TERM-CITE / E-TERM-DUP 逐数据行判定：
+    `英文术语`（第 1 列）非空且含至少 1 个拉丁字母；`中文译名`/`一句话解释`/`在本文中的角色`
+    （第 3/4/5 列，1 基）非空且不是占位符 `-`/`—`/`TBD`/`无`/`N/A`（ASCII 比较不区分大小写）；
+    `出处`（第 6 列）须含合法来源标记 —— 裸标记 `[原文]/[代码]/[摘要]/[二手]/[OCR]/[推断]`
+    或**带页码**的 `[原文 p.7]`（`p.` 后允许一个空白，允许 `p.7-8` 这样的范围）；
+    重复判定以"英文术语"列归一化（压空白 + 大小写折叠）后的字符串为键，同一键 ≥2 次各报 1 条。
+    这里的页码分支从一开始就写在 TERMS_CITE_RE 里，避免重演 FAQ_CITE_RE 与
+    `references/faq-template.md` 口径不一致（模板允许 `[原文 p.N]`、正则只认裸标记）的老问题。
+    W-TERM-MIN 是"全量收录"的**下限代理指标**而非完整性证明，消息里写明这一点；阈值 15。
+    W-TERM-QUOTE 统计 `## 五、英文原句摘录` 区间内的列表项：合格条目 = 去掉合法来源标记后
+    仍有 ≥2 个长度 ≥2 的英文单词（"一段英文"）**且**含合法来源标记；合格条目 < 5 报 1 条。
+    W-TERM-ABBR / W-TERM-SORT 只看 `## 六、缩略语索引`：缩写候选取该区间内每张表的
+    **首个数据列**与每个列表项的行首 token（`**BOLD**`、`ABBR：…`、`ABBR 中文` 都认），
+    候选须是"全大写字母数字 token"（长度 ≥2，可含 `-`/`+`/`.`）才当作缩写；
+    候选未在二、三两节 `缩写` 列（去空白去反引号去粗体星号后同样判定）出现过即悬空；
+    字母序用去空白 + 大小写折叠后的字符串比较，只报第一处逆序。
 """
 from __future__ import annotations
 
@@ -108,7 +139,7 @@ try:  # Windows GBK 控制台防御：保证中文输出不抛 UnicodeEncodeErro
 except Exception:
     pass
 
-MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review", "index")
+MODES = ("auto", "deep", "table", "mindmap", "mmd", "faq", "review", "index", "terms")
 
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 FENCE_LINE_RE = re.compile(r"^\s*```")
@@ -154,6 +185,37 @@ IDX_ENTRY_DASH_RE = re.compile(r"^\s+—\s+(\S.*?)\s*$")
 IDX_ENTRY_EVIDENCE_RE = re.compile(r"（证据：([^）]*)）\s*$")
 IDX_ENTRY_CODE_RE = re.compile(r"代码\s*[:：]\s*(?:有|无)")
 IDX_SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
+# terms 模式（专业术语表 术语-<短名>.md）
+TERMS_SECTIONS = (
+    "一、怎么用这份表",
+    "二、核心术语（本文自造与方法名）",
+    "三、分领域术语",
+    "四、易混对照",
+    "五、英文原句摘录",
+    "六、缩略语索引",
+)
+# 术语表的六列表头（与 references/terms-template.md 的骨架逐字一致）
+TERMS_HEADER_CELLS = ("英文术语", "缩写", "中文译名", "一句话解释", "在本文中的角色", "出处")
+TERMS_TABLE_HEADER = "|" + "|".join(TERMS_HEADER_CELLS) + "|"
+# 二、三两节（术语注册区）；三节里允许 `### <分组名>` 分小组，每组一张同形状的表
+TERMS_TERM_SECTIONS = ("二、核心术语（本文自造与方法名）", "三、分领域术语")
+TERMS_QUOTE_SECTION = "五、英文原句摘录"
+TERMS_ABBR_SECTION = "六、缩略语索引"
+TERMS_H1_RE = re.compile(r"^#\s+\S.*?\s+专业术语表（中英对照）\s*$")
+# 出处列：裸标记，或带页码的 [原文 p.7] / [原文 p.7-8]（页码分支必须从一开始就合法）
+_TERMS_CITE_LABELS = ("原文", "代码", "摘要", "二手", "OCR", "推断")
+TERMS_CITE_RE = re.compile(
+    r"\[(?:" + "|".join(_TERMS_CITE_LABELS) + r")(?:\s*p\.\s?\d+(?:-\d+)?)?\]",
+    re.IGNORECASE,
+)
+TERMS_PLACEHOLDERS = frozenset({"-", "—", "tbd", "无", "n/a"})
+TERMS_TABLE_MIN_ROWS = 8
+TERMS_MIN_ROWS = 15
+TERMS_MIN_QUOTES = 5
+TERMS_ABBR_RE = re.compile(r"^[A-Z0-9][A-Z0-9+\-.]{1,15}$")
+TERMS_ITEM_RE = re.compile(r"^([-*+]|\d+[.)])(\s+|$)")
+TERMS_EN_WORD_RE = re.compile(r"[A-Za-z]{2,}")
 
 
 # ---------------------------------------------------------------- 通用工具
@@ -1129,6 +1191,197 @@ def check_index(lines: list[str], marker_ok: bool, path: Path) -> tuple[list[tup
     return problems, executed
 
 
+# ---------------------------------------------------------------- terms 模式
+
+def check_terms(lines: list[str], path: Path) -> tuple[list[tuple[str, str]], int]:
+    """校验专业术语表 术语-<短名>.md（模式 H，中英对照全量术语）。
+
+    契约见 references/terms-template.md：六节骨架 + 六列表头 + 11 个检查码。
+    出处列从实现第一天起就同时接受裸标记与带页码形式（[原文 p.7] / [原文 p.7-8]）——
+    FAQ_CITE_RE 那种"模板说合法、校验器不认"的口径不一致不允许在新模式里复发。
+    """
+    problems: list[tuple[str, str]] = []
+    executed = 0
+    headings = heading_map(lines)
+    h1_idx = [i for i, ln in enumerate(lines) if H1_RE.match(ln)]
+    fi = first_nonempty(lines)
+
+    # E-TERM-H1
+    executed += 1
+    head_text = lines[fi].strip() if fi is not None else ""
+    if fi is None or len(h1_idx) != 1 or h1_idx[0] != fi or not TERMS_H1_RE.match(head_text):
+        problems.append(
+            ("E-TERM-H1",
+             "首个非空行必须是唯一的 H1「# <短名> 专业术语表（中英对照）」，"
+             f"实际：{head_text or '（无）'}")
+        )
+
+    # E-TERM-SEC
+    executed += 1
+    spans: dict[str, tuple[int, int]] = {}
+    for kw in TERMS_SECTIONS:
+        sp = section_span(lines, headings, kw)
+        if sp is not None:
+            spans[kw] = sp
+    for kw in TERMS_SECTIONS:
+        if kw not in spans:
+            problems.append(("E-TERM-SEC", f"缺少必备小节：## {kw}"))
+    if len(spans) == len(TERMS_SECTIONS):
+        order = [spans[kw][0] for kw in TERMS_SECTIONS]
+        if order != sorted(order):
+            problems.append(
+                ("E-TERM-SEC",
+                 "六个必备小节必须按此顺序：" + " → ".join(f"## {kw}" for kw in TERMS_SECTIONS))
+            )
+
+    # ---- 术语注册区（二、三两节）逐表逐行扫描
+    terms_seen: dict[str, list[int]] = {}
+    abbr_seen: set[str] = set()
+    table_problems: list[tuple[str, str]] = []
+    en_problems: list[tuple[str, str]] = []
+    empty_problems: list[tuple[str, str]] = []
+    cite_problems: list[tuple[str, str]] = []
+    dup_problems: list[tuple[str, str]] = []
+    data_row_count = 0
+
+    for sec in TERMS_TERM_SECTIONS:
+        sp = spans.get(sec)
+        if sp is None:
+            continue
+        start, end = sp
+        for a, b in table_runs(lines[start + 1:end]):
+            base = start + 1 + a
+            header_cells = [c.strip() for c in split_cells(lines[base])]
+            if header_cells != list(TERMS_HEADER_CELLS):
+                table_problems.append(
+                    ("E-TERM-TABLE",
+                     f"第 {base + 1} 行表头必须是六列「{' | '.join(TERMS_HEADER_CELLS)}」，"
+                     f"实际：{' | '.join(header_cells) or '（空）'}")
+                )
+                continue
+            for j in range(base + 1, start + 1 + b):
+                if not lines[j].strip().startswith("|"):
+                    continue
+                cells = [c.strip() for c in split_cells(lines[j])]
+                if not cells or all(IDX_SEPARATOR_CELL_RE.match(c) for c in cells if c):
+                    continue  # 分隔行或空行
+                data_row_count += 1
+                if len(cells) != len(TERMS_HEADER_CELLS):
+                    table_problems.append(
+                        ("E-TERM-TABLE",
+                         f"第 {j + 1} 行数据是 {len(cells)} 列，六列表头要求 6 列")
+                    )
+                    continue
+                en, abbr, cn, expl, role, cite = cells
+
+                # E-TERM-EN：本模式存在的理由——英文原词必须留下
+                if not TERMS_EN_WORD_RE.search(en):
+                    en_problems.append(
+                        ("E-TERM-EN",
+                         f"第 {j + 1} 行「英文术语」列缺少英文原词（必须含拉丁字母）：{en or '（空）'}")
+                    )
+                # E-TERM-EMPTY
+                bad_cols = [
+                    name for name, val in (("中文译名", cn), ("一句话解释", expl), ("在本文中的角色", role))
+                    if not val or val.lower() in TERMS_PLACEHOLDERS
+                ]
+                if bad_cols:
+                    empty_problems.append(
+                        ("E-TERM-EMPTY",
+                         f"第 {j + 1} 行这些列为空或占位符：{'、'.join(bad_cols)}")
+                    )
+                # E-TERM-CITE
+                if not TERMS_CITE_RE.search(cite):
+                    cite_problems.append(
+                        ("E-TERM-CITE",
+                         f"第 {j + 1} 行「出处」列不是合法来源标记"
+                         f"（[原文 p.7] 这类带页码形式合法）：{cite or '（空）'}")
+                    )
+                if abbr and abbr.lower() not in TERMS_PLACEHOLDERS:
+                    abbr_seen.add(abbr.lower())
+                key = re.sub(r"\s+", " ", en).strip().lower()
+                if key:
+                    terms_seen.setdefault(key, []).append(j + 1)
+
+    executed += 1
+    problems.extend(table_problems)
+    executed += 1
+    problems.extend(en_problems)
+    executed += 1
+    problems.extend(empty_problems)
+    executed += 1
+    problems.extend(cite_problems)
+
+    # E-TERM-DUP（跨二、三两节）
+    executed += 1
+    for key, lns in terms_seen.items():
+        if len(lns) >= 2:
+            dup_problems.append(
+                ("E-TERM-DUP",
+                 f"同一英文术语重复登记 {len(lns)} 次（第 {'、'.join(str(n) for n in lns)} 行）：{key}")
+            )
+    problems.extend(dup_problems)
+
+    # W-TERM-MIN（"全量"的下限代理指标，不是完整性证明）
+    executed += 1
+    if data_row_count < TERMS_MIN_ROWS:
+        problems.append(
+            ("W-TERM-MIN",
+             f"二、三两节合计只有 {data_row_count} 行术语，少于 {TERMS_MIN_ROWS} 行"
+             "（这只是「全量收录」的下限代理指标，不是完整性证明）")
+        )
+
+    # W-TERM-QUOTE
+    executed += 1
+    quote_count = 0
+    sp5 = spans.get(TERMS_QUOTE_SECTION)
+    if sp5 is not None:
+        for i in range(sp5[0] + 1, sp5[1]):
+            s = lines[i].strip()
+            if not TERMS_ITEM_RE.match(s):
+                continue
+            if TERMS_EN_WORD_RE.search(s) and TERMS_CITE_RE.search(s):
+                quote_count += 1
+    if quote_count < TERMS_MIN_QUOTES:
+        problems.append(
+            ("W-TERM-QUOTE",
+             f"第五节英文原句摘录只有 {quote_count} 条合格条目"
+             f"（需要 ≥{TERMS_MIN_QUOTES} 条：英文原句 + 中文直译 + 来源标记）")
+        )
+
+    # ---- 六、缩略语索引
+    abbr_entries: list[str] = []
+    sp6 = spans.get(TERMS_ABBR_SECTION)
+    if sp6 is not None:
+        for a, b in table_runs(lines[sp6[0] + 1:sp6[1]]):
+            base = sp6[0] + 1 + a
+            for j in range(base + 1, sp6[0] + 1 + b):
+                if not lines[j].strip().startswith("|"):
+                    continue
+                cells = [c.strip() for c in split_cells(lines[j])]
+                if not cells or all(IDX_SEPARATOR_CELL_RE.match(c) for c in cells if c):
+                    continue
+                if TERMS_ABBR_RE.match(cells[0]):
+                    abbr_entries.append(cells[0])
+
+    # W-TERM-ABBR（悬空缩写）
+    executed += 1
+    dangling = [a for a in abbr_entries if a.lower() not in abbr_seen]
+    if dangling:
+        problems.append(
+            ("W-TERM-ABBR",
+             f"缩略语索引里的缩写未在二、三节的「缩写」列出现过（悬空缩写）：{'、'.join(dangling)}")
+        )
+
+    # W-TERM-SORT
+    executed += 1
+    keys = [a.lower() for a in abbr_entries]
+    if keys != sorted(keys):
+        problems.append(("W-TERM-SORT", "缩略语索引未按字母升序排列"))
+
+    return problems, executed
+
+
 # ---------------------------------------------------------------- 模式判定与入口
 
 def detect_mode(path: Path, lines: list[str], index_marker: bool = False) -> str:
@@ -1146,6 +1399,8 @@ def detect_mode(path: Path, lines: list[str], index_marker: bool = False) -> str
         return "mmd"
     if "难点" in name or "问答" in name or "faq" in low:
         return "faq"
+    if "术语" in name or "terms" in low:
+        return "terms"
     if "综述" in name:
         return "review"
     headings = heading_map(lines)
@@ -1258,6 +1513,8 @@ def main(argv: list[str] | None = None) -> int:
         problems, executed = check_faq(raw_lines)
     elif mode == "index":
         problems, executed = check_index(raw_lines, index_marker, path)
+    elif mode == "terms":
+        problems, executed = check_terms(raw_lines, path)
     else:
         problems, executed = check_review(raw_lines, refs)
 

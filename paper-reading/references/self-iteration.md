@@ -12,7 +12,7 @@
   1. `check_paper_note.py` 报出 ERROR，或 WARN 被人工判定为"本应在生成时避免"
   2. 人工过 `quality-rubric.md` 时任何一条不过导致返工
   3. 用户要求返工、修正或表达不满（含"太浅了""数字不对""没有讲清 XX"）
-- `source` 取 `check_paper_note` / `rubric` / `user_rework`；`action` 取 `fix_output`（修本次产出）或 `rule_change`（改 skill）；`mode` 取 `deep` / `table` / `mindmap` / `mmd` / `faq` / `review`，PDF 导入或抽取器相关的改动记 `pdf`（与 `check_paper_note.py --mode` 的取值一致，勿再造新词）
+- `source` 取 `check_paper_note` / `rubric` / `user_rework`；`action` 取 `fix_output`（修本次产出）或 `rule_change`（改 skill）；`mode` 取 `deep` / `table` / `mindmap` / `mmd` / `faq` / `review` / `index` / `terms`，PDF 导入或抽取器相关的改动记 `pdf`（与 `check_paper_note.py --mode` 的取值一致，勿再造新词）
 - **只追加，不修改不删除**——历史证据是迭代的地基，写错了就追加一条更正
 
 ## 触发条件（满足其一才进入迭代流程）

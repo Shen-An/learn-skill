@@ -28,6 +28,13 @@ references/self-iteration.md 规定：任何对 SKILL.md 规则、check_paper_no
      orphan/（有笔记未登记）报 W-IDX-ORPHAN 而 linked/（已登记）不报，证明该 WARN 不是恒真；
      `--mode auto` 对首行带 `<!-- paper-reading: collection-index -->` 的文件判为 index，
      缺标记文件则不会被 auto 判成 index；最后做"每个索引 fixture 都在断言表内"的完整性自检
+  7) 专业术语表 terms-cases：check_paper_note.py 的 `--mode terms`（11 个 CODE）逐项断言——
+     good/术语-示例.md 必须 0 ERROR 0 WARN 且以 `[PASS ] 11 项检查全部通过` 结尾；每个 bad
+     fixture 退出码 1 且**命中的 ERROR 码集合恰为**它设计的那一个；每个 warn fixture 退出码 0、
+     无任何 E 码、命中的 WARN 码集合恰为它设计的那一个；`--mode auto` 对每个 `术语-*.md`
+     与显式 `--mode terms` 输出逐字一致；good fixture 同时用 `[原文 p.7]` 与 `[原文 p.7-8]`
+     守住"模板说合法、校验器就必须认"的带页码出处口径；最后做"每个术语表 fixture 都在
+     断言表内"的完整性自检
 退出码: 全部断言通过 → 0；任一失败 → 1
 """
 from __future__ import annotations
@@ -769,9 +776,121 @@ code_auto, out_auto = run_check(IDX_CASES / "bad" / "索引-缺标记.md", "auto
 expect("用例6 缺标记文件不会被 auto 判为 index（不报任何 E-IDX-* 码）",
        "E-IDX-" not in out_auto, out_auto)
 
+# ---- 用例 7：专业术语表 术语-<短名>.md（--mode terms） ----------------------
+# 契约写在 check_paper_note.py 的 check_terms() 与 references/terms-template.md：
+# 六节骨架 + 六列表头 + 11 个检查码；文件名词干含 `术语` 时 --mode auto 即判为 terms
+# （不需要 index 那种 HTML 注释标记，所以 fixture 文件名一律 `术语-*.md`）。
+# terms-cases/ 只放术语表 fixture（good/warn/bad 三个子目录），不放进
+# good-sample / warn-sample / bad-sample，避免干扰既有用例的完整性校验。
+TERMS_CASES = HERE / "terms-cases"
+TERMS_DIRS = ("good", "warn", "bad")
+TERMS_GOOD_REL = "good/术语-示例.md"
+# (相对 terms-cases 的路径, 设计要触发的 ERROR 码, 关键消息片段)
+TERMS_BAD_CASES: list[tuple[str, str, str]] = [
+    # 删掉整个第五节 → 摘录条数必然为 0，连带 W-TERM-QUOTE（WARN 不影响退出码，
+    # 下面的断言只要求 ERROR 码集合恰为设计的那一个）
+    ("bad/术语-缺小节.md", "E-TERM-SEC", "缺少必备小节：## 五、英文原句摘录"),
+    ("bad/术语-标题不合规.md", "E-TERM-H1",
+     "首个非空行必须是唯一的 H1「# <短名> 专业术语表（中英对照）」，实际：# 特征层动量攻击术语表"),
+    ("bad/术语-列数不符.md", "E-TERM-TABLE", "第 48 行数据是 5 列，六列表头要求 6 列"),
+    ("bad/术语-英文缺失.md", "E-TERM-EN",
+     "第 36 行「英文术语」列缺少英文原词（必须含拉丁字母）：攻击成功率"),
+    ("bad/术语-出处非法.md", "E-TERM-CITE",
+     "第 38 行「出处」列不是合法来源标记（[原文 p.7] 这类带页码形式合法）：[不明来源]"),
+    ("bad/术语-空列.md", "E-TERM-EMPTY", "第 37 行这些列为空或占位符：一句话解释"),
+    ("bad/术语-重复登记.md", "E-TERM-DUP",
+     "同一英文术语重复登记 2 次（第 19、28 行）：transferability"),
+]
+# (相对 terms-cases 的路径, 设计要触发的 WARN 码, 关键消息片段)
+TERMS_WARN_CASES: list[tuple[str, str, str]] = [
+    ("warn/术语-条数不足.md", "W-TERM-MIN", "二、三两节合计只有 12 行术语，少于 15 行"),
+    ("warn/术语-摘录不足.md", "W-TERM-QUOTE", "第五节英文原句摘录只有 3 条合格条目"),
+    ("warn/术语-悬空缩写.md", "W-TERM-ABBR", "悬空缩写）：TI-FGSM"),
+    ("warn/术语-缩写乱序.md", "W-TERM-SORT", "缩略语索引未按字母升序排列"),
+]
+
+case7_start = assertions
+
+
+def run_terms(rel: str, mode: str = "terms") -> tuple[int, str]:
+    return run_check(TERMS_CASES / rel, mode)
+
+
+def term_codes(out: str, level: str) -> list[str]:
+    """取出输出里 level（E / W）级的 TERM 码并去重排序。"""
+    return sorted(set(re.findall(r"\[(?:ERROR|WARN )\] (" + level + r"-TERM-[A-Z0-9-]+)", out)))
+
+
+expect("terms-cases/ 三个子目录齐全（good/warn/bad）",
+       all((TERMS_CASES / d).is_dir() for d in TERMS_DIRS),
+       f"实际 {sorted(p.name for p in TERMS_CASES.iterdir()) if TERMS_CASES.is_dir() else '目录不存在'}")
+
+terms_present = sorted(p.relative_to(TERMS_CASES).as_posix() for p in TERMS_CASES.rglob("*.md"))
+terms_covered = ({TERMS_GOOD_REL}
+                 | {rel for rel, _, _ in TERMS_BAD_CASES}
+                 | {rel for rel, _, _ in TERMS_WARN_CASES})
+expect("terms-cases 每个 .md fixture 都在断言表内",
+       bool(terms_present) and set(terms_present) <= terms_covered,
+       f"未覆盖: {sorted(set(terms_present) - terms_covered)}")
+
+# --- good：0 ERROR 0 WARN（11 项检查全过） ---
+code_good, out_good = run_terms(TERMS_GOOD_REL)
+expect("用例7 good/术语-示例.md --mode terms 退出码为 0", code_good == 0, f"实际 {code_good}\n{out_good}")
+expect("用例7 good/术语-示例.md 11 项检查全过（check_terms 的 executed 计数没被静默减项）",
+       "[PASS ] 11 项检查全部通过" in out_good, out_good)
+expect("用例7 good/术语-示例.md 输出以 [PASS ] 11 项检查全部通过 结尾",
+       out_good.strip().endswith("[PASS ] 11 项检查全部通过"), out_good)
+expect("用例7 good/术语-示例.md 无 ERROR 行", "[ERROR]" not in out_good, out_good)
+expect("用例7 good/术语-示例.md 无 WARN 行", "[WARN ]" not in out_good, out_good)
+expect("用例7 good/术语-示例.md 未命任何 E-TERM-* 码（实际 "
+       f"{term_codes(out_good, 'E')}）", term_codes(out_good, "E") == [], out_good)
+expect("用例7 good/术语-示例.md 未命任何 W-TERM-* 码（实际 "
+       f"{term_codes(out_good, 'W')}）", term_codes(out_good, "W") == [], out_good)
+
+# --- bad：退出码 1，且只报它设计的那一个 ERROR 码 ---
+for rel, want_code, frag in TERMS_BAD_CASES:
+    code, out = run_terms(rel)
+    tag = f"terms-cases/{rel} --mode terms"
+    expect(f"{tag} 退出码为 1", code == 1, f"实际 {code}\n{out}")
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[ERROR] {want_code} " in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = term_codes(out, "E")
+    expect(f"{tag} 命中的 ERROR 码集合恰为 [{want_code}]（实际 {got}）", got == [want_code], out)
+
+# --- warn：退出码 0、无 ERROR，且只报它设计的那一个 WARN 码 ---
+for rel, want_code, frag in TERMS_WARN_CASES:
+    code, out = run_terms(rel)
+    tag = f"terms-cases/{rel} --mode terms"
+    expect(f"{tag} 退出码为 0（WARN 不改退出码）", code == 0, f"实际 {code}\n{out}")
+    expect(f"{tag} 未命任何 E- 码（实际 {term_codes(out, 'E')}）", term_codes(out, "E") == [], out)
+    expect(f"{tag} 命中 {want_code}：{frag}", f"[WARN ] {want_code}" in out and frag in out,
+           f"输出未含 {want_code} / {frag}\n{out}")
+    got = term_codes(out, "W")
+    expect(f"{tag} 命中的 WARN 码集合恰为 [{want_code}]（实际 {got}）", got == [want_code], out)
+
+# --- --mode auto 的判定：文件名词干含 `术语` → terms（与显式 --mode terms 逐字一致） ---
+for rel in terms_present:
+    code_auto, out_auto = run_check(TERMS_CASES / rel, "auto")
+    code_terms, out_terms = run_check(TERMS_CASES / rel, "terms")
+    expect(f"用例7 --mode auto 对 {rel} 判为 terms（退出码与输出与 --mode terms 逐字一致）",
+           code_auto == code_terms and out_auto == out_terms,
+           f"auto {code_auto}:\n{out_auto}\n--- terms {code_terms}:\n{out_terms}")
+
+# --- 带页码出处的口径守卫：模板说合法，校验器就必须认（FAQ_CITE_RE 那类不一致不许复发） ---
+terms_good_text = read_md(TERMS_CASES / TERMS_GOOD_REL)
+terms_tpl_text = read_md(ROOT / "references" / "terms-template.md")
+expect("用例7 good fixture 同时用到 [原文 p.7] 与 [原文 p.7-8]（这条守卫不是空转）",
+       "[原文 p.7]" in terms_good_text and "[原文 p.7-8]" in terms_good_text,
+       terms_good_text)
+expect("用例7 模板 references/terms-template.md 仍把 [原文 p.7] / [原文 p.7-8] 写成合法出处",
+       "[原文 p.7]" in terms_tpl_text and "[原文 p.7-8]" in terms_tpl_text, terms_tpl_text)
+expect("用例7 带页码出处过校验：good fixture 0 ERROR 且不含 E-TERM-CITE",
+       code_good == 0 and "E-TERM-CITE" not in out_good, out_good)
+
 # ---- 汇总 ------------------------------------------------------------------
 print(f"\n[INFO ] 断言总数: {assertions}（用例 1-4：{case5_start}，"
-      f"用例 5 PDF 抽取器：{case6_start - case5_start}，用例 6 合集索引：{assertions - case6_start}）")
+      f"用例 5 PDF 抽取器：{case6_start - case5_start}，用例 6 合集索引：{case7_start - case6_start}，"
+      f"用例 7 专业术语表：{assertions - case7_start}）")
 if failures:
     print(f"\n[FAIL ] {len(failures)} 条断言未过：")
     for f_ in failures:

@@ -2,3 +2,4 @@
 {"ts":"2026-09-23T09:31:18+08:00","run":"paper-notes/XYZ/","mode":"table","source":"rubric","codes":["忠实性"],"detail":"「主要发现」写入了二手总结的集成攻击 89.6%，未标注与官方摘要 86.6% 的口径冲突","action":"fix_output","rule_change":null}
 {"ts":"2026-09-27T10:02:44+08:00","run":"paper-notes/ABC/","mode":"deep","source":"user_rework","codes":["讲解密度"],"detail":"用户反馈：符号表只列了符号名没给含义，公式后缺“直觉上等价于什么”的一句","action":"rule_change","rule_change":"deep-read-template.md 二、符号表补“含义必须可独立读懂”一列要求"}
 {"ts":"2026-09-28T15:20:00+08:00","run":"paper-notes/","mode":"index","source":"check_paper_note","codes":["E-IDX-LINK"],"detail":"库索引里 ABC 条目指向 ./ABC/README.md，但该目录已改名为 ABC-v2，登记成了死链","action":"fix_output","rule_change":null}
+{"ts":"2026-10-02T11:05:12+08:00","run":"paper-notes/XYZ/","mode":"terms","source":"check_paper_note","codes":["E-TERM-EN"],"detail":"术语表第 21 行「英文术语」列写成了中文译名「迁移性」，英文原词 transferability 丢了——这正是模式 H 要防的退化","action":"fix_output","rule_change":null}
