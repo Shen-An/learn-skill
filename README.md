@@ -91,7 +91,7 @@ clone 仓库 → 把两个 skill 目录整个拷进你本机的 skill 扫描目�
 
 短一点的说法同样有效：「装 learn-skill 这个仓库里的 skill」「安装 Shen-An/learn-skill 的 paper-reading」。它会自己找到该落哪个目录——DSH `~/.agents/skills/`、Claude Code `~/.claude/skills/`、Codex `~/.codex/skills/`——装完再跑一遍门禁确认装上去的是好的。**Codex 不认斜杠命令**，这一步全程自然语言；DSH 与 Claude Code 也可以直接说人话，不必写成 `/` 命令。
 
-想钉版本就说清 tag（「装 v1.5.0 那一版」→ `git clone --branch v1.5.0`）；网络受限、或你想先看它做什么再落盘，就退到下面两条路。
+想钉版本就说清 tag（「装 v1.7.1 那一版」→ `git clone --branch v1.7.1`）；网络受限、或你想先看它做什么再落盘，就退到下面两条路。
 
 ### 一条命令同步：`install.ps1`
 

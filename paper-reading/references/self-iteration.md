@@ -32,9 +32,10 @@
 3. **门禁**：
    - 动了 `scripts/` 或 fixture → 必跑 `python evals/run_evals.py`，全部断言 PASS 才可继续；给 `check_paper_note.py` 新增检查项时，必须同步在 `evals/bad-sample/` 埋对应违规、在 `run_evals.py` 加断言
    - 只动 SKILL.md / 模板文字 → 用最近一次真实论文重跑一次对应模式，对比产出是否有回归
-4. **人工确认**：把 diff 提案（见下方模板）交给用户，得到 yes 才落盘。AI 不得自行升版本
+4. **人工确认**：把 diff 提案（见下方模板）交给用户，得到 yes 才落盘。AI 不得自行升版本，**也不得自行推送、打 tag 或发 release**——这三个对外动作与升版本同级，必须先拿到人工 yes；事后补一句"我已经推了"不算确认（ledger 第 19 条就是这么来的）
 5. **升版本**：新增/修改规则 → minor；措辞微调 → patch；宪法区收紧 → minor。写 `CHANGELOG.md`，并在 ledger 追加一条 `action:"rule_change"` 闭环
 6. **机械/人工同步**：rubric 条目若被判定可机械化 → 移入 `check_paper_note.py`，rubric 删除对应条目并注明"脚本 X 号已覆盖"；反之脚本查不了的人工项别硬塞进脚本
+7. **发版收尾**（先按第 4 步拿到 yes）：`pwsh install.ps1` 同步三个 harness 并确认"一致" → 提交并推送 → 打**附注** tag `vX.Y.Z` 并推送 → 发 GitHub Release（notes 直接取 `CHANGELOG.md` 对应段落；一次覆盖多个版本时，开头先写明范围，如 v1.5.0 合发 1.3.0–1.5.0）。**只推 commit、不打 tag、不发 Release 等于没发版**——外部读者按 tag 装版本，仓库里 v1.6.0 与 v1.7.0 就是这样裸着 commit 的（ledger 第 19 条）
 
 ## 宪法区（不可放松、不可删除，只可收紧）
 
